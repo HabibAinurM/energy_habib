@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Energy Monitor – Pantau & Hemat Listrik Rumah Anda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue-deep: #050f2c;
+  --blue-dark: #071b4d;
+  --blue-mid: #0d3580;
+  --blue-bright: #1a5ff0;
+  --blue-electric: #2f7fff;
+  --blue-glow: #4d9eff;
+  --cyan: #00d4ff;
+  --cyan-soft: #7ee8fa;
+  --white: #f0f6ff;
+  --white-dim: rgba(240,246,255,0.7);
+  --white-faint: rgba(240,246,255,0.12);
+  --gold: #ffc940;
+  --green: #00e5a0;
+  --text-body: #b8d0f0;
+  --glass: rgba(13,53,128,0.3);
+  --glass-border: rgba(79,158,255,0.2);
+  --radius: 16px;
+  --radius-lg: 24px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--blue-deep);
+  color: var(--white);
+  overflow-x: hidden;
+  line-height: 1.6;
+}
+
+/* ─── UTILITY ─────────────────────────────────── */
+.container { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--cyan); background: rgba(0,212,255,.1); border: 1px solid rgba(0,212,255,.25);
+  padding: 6px 16px; border-radius: 999px; margin-bottom: 18px;
+}
+.tag::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.4)} }
+
+h1,h2,h3,h4 { font-family: 'Syne', sans-serif; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 14px 28px; border-radius: 10px; font-family: 'Syne', sans-serif;
+  font-size: 15px; font-weight: 700; cursor: pointer; border: none; text-decoration: none;
+  transition: all .3s cubic-bezier(.25,.8,.25,1);
+}
+.btn-primary {
+  background: linear-gradient(135deg, var(--blue-bright), var(--cyan));
+  color: #fff; box-shadow: 0 8px 32px rgba(47,127,255,.4);
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(47,127,255,.6); }
+.btn-outline {
+  background: transparent; color: var(--white);
+  border: 1.5px solid var(--glass-border);
+  backdrop-filter: blur(8px);
+}
+.btn-outline:hover { border-color: var(--cyan); color: var(--cyan); transform: translateY(-2px); }
+
+/* ─── BACKGROUND EFFECTS ──────────────────────── */
+.bg-orb {
+  position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0;
+}
+
+/* ─── NAVBAR ──────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  padding: 18px 0;
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  background: rgba(5,15,44,.7);
+  transition: all .3s;
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1160px; margin: 0 auto; padding: 0 24px;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--white);
+  text-decoration: none;
+}
+.logo-icon {
+  width: 36px; height: 36px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--blue-bright), var(--cyan));
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+}
+.nav-links { display: flex; gap: 32px; list-style: none; }
+.nav-links a { color: var(--text-body); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+.nav-links a:hover { color: var(--cyan); }
+.nav-cta { display: flex; gap: 10px; }
+.hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; padding: 4px; }
+.hamburger span { width: 22px; height: 2px; background: var(--white); border-radius: 2px; transition: all .3s; }
+
+/* ─── HERO ────────────────────────────────────── */
+#hero {
+  position: relative; min-height: 100vh;
+  display: flex; align-items: center; padding-top: 90px; overflow: hidden;
+}
+.hero-orb-1 { width: 700px; height: 700px; background: var(--blue-mid); top: -200px; right: -200px; opacity: .5; }
+.hero-orb-2 { width: 400px; height: 400px; background: rgba(0,212,255,.15); bottom: 0; left: -100px; }
+.hero-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center;
+  position: relative; z-index: 1;
+}
+.hero-text { animation: fadeUp .8s ease both; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(30px)} to{opacity:1;transform:translateY(0)} }
+.hero-text h1 {
+  font-size: clamp(36px, 5vw, 60px); font-weight: 800; line-height: 1.1;
+  margin-bottom: 20px;
+}
+.hero-text h1 span {
+  background: linear-gradient(90deg, var(--blue-glow), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.hero-text p { font-size: 17px; color: var(--text-body); max-width: 480px; margin-bottom: 36px; line-height: 1.7; }
+.hero-ctas { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 48px; }
+.hero-stats { display: flex; gap: 32px; flex-wrap: wrap; }
+.stat { }
+.stat-num { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: var(--cyan); }
+.stat-label { font-size: 12px; color: var(--text-body); }
+
+/* Dashboard Visual */
+.hero-visual { animation: fadeUp .8s .2s ease both; position: relative; }
+.dashboard-card {
+  background: linear-gradient(145deg, rgba(13,53,128,.8), rgba(5,15,44,.9));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 32px 80px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  position: relative; overflow: hidden;
+}
+.dashboard-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+}
+.dash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.dash-title { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; }
+.live-badge {
+  display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--green);
+  background: rgba(0,229,160,.1); border: 1px solid rgba(0,229,160,.25); padding: 4px 10px; border-radius: 999px;
+}
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 1.5s infinite; }
+.dash-metrics { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+.metric-box {
+  background: var(--white-faint); border: 1px solid var(--glass-border);
+  border-radius: var(--radius); padding: 14px; text-align: center;
+}
+.metric-icon { font-size: 20px; margin-bottom: 6px; }
+.metric-val { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--white); }
+.metric-unit { font-size: 10px; color: var(--text-body); }
+.metric-lbl { font-size: 11px; color: var(--text-body); margin-top: 2px; }
+
+/* Chart */
+.chart-area { margin-bottom: 16px; }
+.chart-label { font-size: 12px; color: var(--text-body); margin-bottom: 10px; display: flex; justify-content: space-between; }
+.chart-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+.bar {
+  flex: 1; border-radius: 4px 4px 0 0;
+  background: linear-gradient(to top, var(--blue-bright), var(--cyan));
+  opacity: .7; animation: growBar 1s ease both;
+}
+@keyframes growBar { from{transform:scaleY(0);transform-origin:bottom} to{transform:scaleY(1);transform-origin:bottom} }
+.bar:nth-child(2){animation-delay:.1s} .bar:nth-child(3){animation-delay:.2s}
+.bar:nth-child(4){animation-delay:.3s} .bar:nth-child(5){animation-delay:.4s}
+.bar:nth-child(6){animation-delay:.5s} .bar:nth-child(7){animation-delay:.6s}
+.bar.active { opacity: 1; background: linear-gradient(to top, var(--blue-bright), var(--cyan)); box-shadow: 0 0 12px var(--cyan); }
+
+.prediction-bar {
+  background: var(--white-faint); border-radius: var(--radius); padding: 12px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pred-info { font-size: 12px; color: var(--text-body); }
+.pred-val { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; color: var(--gold); }
+.pred-badge { font-size: 11px; color: var(--green); background: rgba(0,229,160,.1); padding: 3px 8px; border-radius: 999px; }
+
+.floating-alert {
+  position: absolute; bottom: -20px; right: -20px;
+  background: linear-gradient(135deg, rgba(13,53,128,.95), rgba(5,15,44,.95));
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+  backdrop-filter: blur(12px); box-shadow: 0 16px 40px rgba(0,0,0,.3);
+  font-size: 12px; white-space: nowrap;
+  animation: float 4s ease-in-out infinite;
+}
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+.alert-icon { font-size: 18px; }
+.alert-title { font-weight: 600; color: var(--white); }
+.alert-sub { color: var(--text-body); font-size: 11px; }
+
+/* ─── PROBLEM ─────────────────────────────────── */
+#problem {
+  padding: 100px 0; position: relative; overflow: hidden;
+  background: linear-gradient(180deg, var(--blue-deep) 0%, rgba(7,27,77,.3) 100%);
+}
+.section-head { text-align: center; margin-bottom: 64px; }
+.section-head h2 { font-size: clamp(28px,4vw,46px); font-weight: 800; margin-bottom: 16px; }
+.section-head p { font-size: 16px; color: var(--text-body); max-width: 540px; margin: 0 auto; }
+.problems-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.prob-card {
+  background: linear-gradient(145deg, rgba(13,53,128,.3), rgba(5,15,44,.5));
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+  padding: 32px; position: relative; overflow: hidden;
+  transition: all .3s; cursor: default;
+}
+.prob-card:hover { transform: translateY(-6px); border-color: rgba(47,127,255,.4); box-shadow: 0 20px 50px rgba(0,0,0,.3); }
+.prob-card::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at top right, rgba(255,60,60,.06), transparent 60%);
+  pointer-events: none;
+}
+.prob-emoji { font-size: 40px; margin-bottom: 18px; display: block; }
+.prob-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.prob-card p { font-size: 14px; color: var(--text-body); line-height: 1.7; }
+.prob-num {
+  position: absolute; top: 20px; right: 20px;
+  font-family: 'Syne', sans-serif; font-size: 48px; font-weight: 800;
+  color: rgba(255,255,255,.04); line-height: 1;
+}
+
+/* ─── SOLUTION ────────────────────────────────── */
+#solution { padding: 100px 0; position: relative; }
+.solution-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+.solution-visual { position: relative; }
+.sol-device {
+  background: linear-gradient(145deg, rgba(13,53,128,.6), rgba(5,15,44,.8));
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+  padding: 28px; backdrop-filter: blur(12px);
+}
+.sol-device-top { display: flex; gap: 6px; margin-bottom: 20px; }
+.sol-device-dot { width: 10px; height: 10px; border-radius: 50%; }
+.sol-screen {
+  background: rgba(5,15,44,.8); border-radius: 10px; padding: 20px;
+  border: 1px solid var(--glass-border);
+}
+.sol-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--glass-border); }
+.sol-row:last-child { border-bottom: none; }
+.sol-row-left { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.sol-row-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.sol-row-val { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; }
+.sol-bar { height: 4px; background: var(--white-faint); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.sol-bar-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, var(--blue-bright), var(--cyan)); }
+
+.sol-floating {
+  position: absolute; bottom: -30px; left: -30px;
+  background: linear-gradient(135deg, var(--blue-mid), var(--blue-dark));
+  border: 1px solid var(--glass-border); border-radius: var(--radius);
+  padding: 16px 20px; backdrop-filter: blur(12px);
+  box-shadow: 0 16px 40px rgba(0,0,0,.4);
+  animation: float 5s ease-in-out infinite 1s;
+}
+.sol-floating-label { font-size: 11px; color: var(--text-body); margin-bottom: 4px; }
+.sol-floating-val { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; color: var(--green); }
+.sol-floating-sub { font-size: 11px; color: var(--text-body); }
+
+.solution-points { display: flex; flex-direction: column; gap: 20px; }
+.solution-text { margin-bottom: 36px; }
+.solution-text h2 { font-size: clamp(28px,4vw,42px); font-weight: 800; margin-bottom: 16px; line-height: 1.2; }
+.solution-text p { font-size: 16px; color: var(--text-body); line-height: 1.7; }
+.sol-point {
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 20px; border-radius: var(--radius);
+  border: 1px solid var(--glass-border);
+  background: var(--white-faint);
+  transition: all .3s;
+}
+.sol-point:hover { border-color: rgba(47,127,255,.4); background: rgba(13,53,128,.3); transform: translateX(6px); }
+.sol-point-icon {
+  width: 44px; height: 44px; min-width: 44px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--blue-bright), var(--cyan));
+  display: flex; align-items: center; justify-content: center; font-size: 20px;
+}
+.sol-point h4 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+.sol-point p { font-size: 13px; color: var(--text-body); }
+
+/* ─── FEATURES ────────────────────────────────── */
+#features { padding: 100px 0; background: linear-gradient(180deg, transparent, rgba(7,27,77,.4), transparent); }
+.features-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.feat-card {
+  padding: 32px; border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(145deg, rgba(13,53,128,.25), rgba(5,15,44,.4));
+  transition: all .35s cubic-bezier(.25,.8,.25,1); cursor: default;
+  position: relative; overflow: hidden;
+}
+.feat-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(47,127,255,.1), transparent 60%);
+  opacity: 0; transition: opacity .3s;
+}
+.feat-card:hover { transform: translateY(-8px); border-color: rgba(47,127,255,.5); box-shadow: 0 24px 60px rgba(0,0,0,.3); }
+.feat-card:hover::before { opacity: 1; }
+.feat-icon {
+  width: 54px; height: 54px; border-radius: 14px; margin-bottom: 22px;
+  background: linear-gradient(135deg, rgba(26,95,240,.4), rgba(0,212,255,.2));
+  border: 1px solid rgba(47,127,255,.3);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.feat-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 10px; }
+.feat-card p { font-size: 13px; color: var(--text-body); line-height: 1.7; }
+.feat-highlight { display: inline-block; margin-top: 14px; font-size: 12px; color: var(--cyan); font-weight: 600; }
+
+/* ─── HOW IT WORKS ────────────────────────────── */
+#how { padding: 100px 0; }
+.how-steps { display: grid; grid-template-columns: repeat(4,1fr); gap: 0; position: relative; }
+.how-steps::before {
+  content: ''; position: absolute; top: 36px; left: 12.5%; right: 12.5%; height: 2px;
+  background: linear-gradient(90deg, var(--blue-bright), var(--cyan));
+  z-index: 0;
+}
+.how-step { text-align: center; padding: 0 16px; position: relative; z-index: 1; }
+.how-step-num {
+  width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 24px;
+  background: linear-gradient(135deg, var(--blue-mid), var(--blue-bright));
+  border: 2px solid var(--blue-electric);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800;
+  box-shadow: 0 0 0 6px var(--blue-deep), 0 0 24px rgba(47,127,255,.4);
+  transition: all .3s;
+}
+.how-step:hover .how-step-num { box-shadow: 0 0 0 6px var(--blue-deep), 0 0 40px rgba(0,212,255,.6); transform: scale(1.1); }
+.how-step-icon { font-size: 28px; margin-bottom: 12px; }
+.how-step h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.how-step p { font-size: 13px; color: var(--text-body); }
+
+/* ─── BENEFITS ────────────────────────────────── */
+#benefits { padding: 100px 0; }
+.benefits-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.ben-card {
+  display: flex; align-items: flex-start; gap: 20px;
+  padding: 28px; border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border); background: var(--white-faint);
+  transition: all .3s;
+}
+.ben-card:hover { border-color: rgba(47,127,255,.4); transform: translateX(4px); }
+.ben-icon {
+  width: 52px; height: 52px; min-width: 52px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.ben-icon.blue { background: linear-gradient(135deg, rgba(26,95,240,.4), rgba(0,212,255,.2)); border: 1px solid rgba(47,127,255,.3); }
+.ben-icon.green { background: linear-gradient(135deg, rgba(0,229,160,.2), rgba(0,212,255,.1)); border: 1px solid rgba(0,229,160,.3); }
+.ben-icon.gold { background: linear-gradient(135deg, rgba(255,201,64,.2), rgba(255,150,0,.1)); border: 1px solid rgba(255,201,64,.3); }
+.ben-card h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.ben-card p { font-size: 13px; color: var(--text-body); line-height: 1.7; }
+
+/* ─── SHOWCASE ────────────────────────────────── */
+#showcase { padding: 100px 0; background: linear-gradient(180deg, transparent, rgba(7,27,77,.3), transparent); }
+.showcase-grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 60px; align-items: center; }
+.showcase-device {
+  background: linear-gradient(145deg, rgba(13,53,128,.5), rgba(5,15,44,.7));
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+  padding: 36px; text-align: center; position: relative;
+  box-shadow: 0 40px 100px rgba(0,0,0,.4);
+}
+.device-body {
+  background: linear-gradient(145deg, #0d2060, #050f2c);
+  border: 2px solid rgba(47,127,255,.3); border-radius: 20px;
+  padding: 24px; display: inline-block; position: relative;
+}
+.device-screen {
+  background: var(--blue-deep); border-radius: 12px; padding: 16px;
+  border: 1px solid var(--glass-border); width: 160px;
+}
+.device-screen-title { font-size: 9px; color: var(--cyan); text-align: center; margin-bottom: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.device-reading { margin-bottom: 8px; }
+.device-reading-label { font-size: 8px; color: var(--text-body); }
+.device-reading-val { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; color: var(--white); }
+.device-reading-unit { font-size: 9px; color: var(--text-body); }
+.device-led {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 8px var(--green);
+  position: absolute; top: 16px; right: 16px;
+  animation: pulse 2s infinite;
+}
+.device-label { font-size: 11px; color: var(--text-body); margin-top: 16px; }
+.device-port { width: 24px; height: 8px; background: rgba(255,255,255,.1); border-radius: 4px; margin: 8px auto 0; }
+
+.showcase-app {
+  background: linear-gradient(145deg, rgba(13,53,128,.5), rgba(5,15,44,.7));
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg); overflow: hidden;
+}
+.app-bar {
+  background: rgba(5,15,44,.8); padding: 14px 20px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.app-bar-dot { width: 10px; height: 10px; border-radius: 50%; }
+.app-url { flex: 1; background: rgba(255,255,255,.05); border-radius: 6px; padding: 5px 12px; font-size: 11px; color: var(--text-body); text-align: center; margin: 0 8px; }
+.app-content { padding: 24px; }
+.app-heading { font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; margin-bottom: 16px; color: var(--cyan); }
+.app-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.app-mini {
+  background: var(--white-faint); border: 1px solid var(--glass-border);
+  border-radius: 10px; padding: 12px; text-align: center;
+}
+.app-mini-icon { font-size: 18px; margin-bottom: 4px; }
+.app-mini-val { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 800; }
+.app-mini-lbl { font-size: 10px; color: var(--text-body); }
+.app-chart { background: var(--white-faint); border-radius: 10px; padding: 14px; border: 1px solid var(--glass-border); }
+.app-chart-label { font-size: 11px; color: var(--text-body); margin-bottom: 10px; display: flex; justify-content: space-between; }
+.app-bars { display: flex; align-items: flex-end; gap: 4px; height: 50px; }
+.app-bar-item { flex: 1; border-radius: 3px 3px 0 0; background: linear-gradient(to top, var(--blue-bright), var(--cyan)); opacity: .6; }
+.app-bar-item.hi { opacity: 1; box-shadow: 0 0 8px var(--cyan); }
+
+/* ─── TESTIMONIALS ────────────────────────────── */
+#testimonials { padding: 100px 0; }
+.testi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.testi-card {
+  padding: 28px; border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border); background: var(--white-faint);
+  transition: all .3s;
+}
+.testi-card:hover { transform: translateY(-4px); border-color: rgba(47,127,255,.4); }
+.testi-stars { color: var(--gold); font-size: 14px; margin-bottom: 14px; letter-spacing: 2px; }
+.testi-text { font-size: 14px; color: var(--text-body); line-height: 1.7; font-style: italic; margin-bottom: 20px; }
+.testi-author { display: flex; align-items: center; gap: 12px; }
+.testi-avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: linear-gradient(135deg, var(--blue-mid), var(--blue-bright));
+  border: 2px solid var(--glass-border);
+}
+.testi-name { font-weight: 700; font-size: 13px; }
+.testi-role { font-size: 11px; color: var(--text-body); }
+
+/* ─── PRICING ─────────────────────────────────── */
+#pricing { padding: 100px 0; background: linear-gradient(180deg, transparent, rgba(7,27,77,.3), transparent); }
+.pricing-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 24px; }
+.price-card {
+  padding: 36px; border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border); background: var(--white-faint);
+  text-align: center; position: relative; transition: all .3s;
+}
+.price-card:hover { transform: translateY(-6px); }
+.price-card.popular {
+  background: linear-gradient(145deg, rgba(26,95,240,.3), rgba(0,212,255,.1));
+  border-color: rgba(47,127,255,.5);
+  box-shadow: 0 20px 60px rgba(47,127,255,.2);
+  transform: scale(1.04);
+}
+.price-card.popular:hover { transform: scale(1.04) translateY(-6px); }
+.popular-badge {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(90deg, var(--blue-bright), var(--cyan));
+  color: #fff; font-size: 11px; font-weight: 700; padding: 4px 16px; border-radius: 999px;
+  font-family: 'Syne', sans-serif; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap;
+}
+.price-name { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.price-desc { font-size: 13px; color: var(--text-body); margin-bottom: 28px; }
+.price-amount { margin-bottom: 28px; }
+.price-amount .price-val { font-family: 'Syne', sans-serif; font-size: 42px; font-weight: 800; }
+.price-amount .price-period { font-size: 14px; color: var(--text-body); }
+.price-features { list-style: none; text-align: left; margin-bottom: 28px; display: flex; flex-direction: column; gap: 12px; }
+.price-features li { font-size: 13px; color: var(--text-body); display: flex; align-items: center; gap: 10px; }
+.price-features li::before { content: '✓'; color: var(--green); font-weight: 700; width: 18px; min-width: 18px; }
+.price-features li.no { color: rgba(176,208,240,.4); }
+.price-features li.no::before { content: '×'; color: rgba(176,208,240,.3); }
+.price-hw { font-size: 13px; color: var(--gold); margin-bottom: 20px; font-weight: 600; }
+
+/* ─── CTA SECTION ─────────────────────────────── */
+#cta { padding: 100px 0; position: relative; overflow: hidden; }
+.cta-box {
+  background: linear-gradient(135deg, rgba(26,95,240,.4), rgba(0,212,255,.15));
+  border: 1px solid rgba(47,127,255,.4); border-radius: 32px;
+  padding: 80px 60px; text-align: center; position: relative; overflow: hidden;
+}
+.cta-box::before {
+  content: ''; position: absolute; inset: 0; border-radius: 32px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(0,212,255,.15), transparent 60%);
+}
+.cta-box h2 { font-size: clamp(28px,4vw,48px); font-weight: 800; margin-bottom: 16px; position: relative; }
+.cta-box p { font-size: 17px; color: var(--text-body); margin-bottom: 40px; position: relative; }
+.cta-btns { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; position: relative; }
+.cta-orb { width: 300px; height: 300px; background: rgba(47,127,255,.2); top: -100px; right: -80px; }
+
+/* ─── FOOTER ──────────────────────────────────── */
+footer {
+  background: rgba(5,15,44,.8); border-top: 1px solid var(--glass-border);
+  padding: 60px 0 30px;
+}
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
+.footer-brand p { font-size: 13px; color: var(--text-body); margin: 14px 0 20px; max-width: 260px; line-height: 1.7; }
+.social-links { display: flex; gap: 10px; }
+.social-link {
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1px solid var(--glass-border); background: var(--white-faint);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-body); text-decoration: none; font-size: 16px;
+  transition: all .2s;
+}
+.social-link:hover { border-color: var(--cyan); color: var(--cyan); transform: translateY(-2px); }
+.footer-col h4 { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--white); margin-bottom: 16px; }
+.footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-col ul a { color: var(--text-body); text-decoration: none; font-size: 13px; transition: color .2s; }
+.footer-col ul a:hover { color: var(--cyan); }
+.footer-bottom { border-top: 1px solid var(--glass-border); padding-top: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: gap-16px; }
+.footer-bottom p { font-size: 12px; color: var(--text-body); }
+.footer-badge { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-body); }
+.footer-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+
+/* ─── SCROLL REVEAL ───────────────────────────── */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity .7s ease, transform .7s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-left { opacity: 0; transform: translateX(-28px); transition: opacity .7s ease, transform .7s ease; }
+.reveal-left.visible { opacity: 1; transform: translateX(0); }
+.reveal-right { opacity: 0; transform: translateX(28px); transition: opacity .7s ease, transform .7s ease; }
+.reveal-right.visible { opacity: 1; transform: translateX(0); }
+
+/* ─── RESPONSIVE ──────────────────────────────── */
+@media(max-width:900px){
+  .nav-links, .nav-cta { display: none; }
+  .hamburger { display: flex; }
+  .hero-grid, .solution-grid, .showcase-grid { grid-template-columns: 1fr; }
+  .hero-visual { order: -1; }
+  .problems-grid, .features-grid, .testi-grid, .pricing-grid { grid-template-columns: 1fr 1fr; }
+  .how-steps { grid-template-columns: 1fr 1fr; }
+  .how-steps::before { display: none; }
+  .benefits-grid { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .floating-alert { display: none; }
+  .sol-floating { display: none; }
+}
+@media(max-width:580px){
+  .problems-grid, .features-grid, .testi-grid, .pricing-grid { grid-template-columns: 1fr; }
+  .hero-ctas { flex-direction: column; }
+  .cta-box { padding: 50px 28px; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .price-card.popular { transform: scale(1); }
+  .price-card.popular:hover { transform: translateY(-6px); }
+}
+</style>
+</head>
+<body>
+
+<!-- NAVBAR -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="logo">
+      <div class="logo-icon">⚡</div>
+      Smart Energy
+    </a>
+    <ul class="nav-links">
+      <li><a href="#problem">Masalah</a></li>
+      <li><a href="#features">Fitur</a></li>
+      <li><a href="#how">Cara Kerja</a></li>
+      <li><a href="#pricing">Harga</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a href="#" class="btn btn-outline" style="padding:10px 20px;font-size:13px;">Lihat Demo</a>
+      <a href="#cta" class="btn btn-primary" style="padding:10px 20px;font-size:13px;">Mulai Sekarang</a>
+    </div>
+    <div class="hamburger" onclick="toggleMenu()" id="ham">
+      <span></span><span></span><span></span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section id="hero">
+  <div class="bg-orb hero-orb-1"></div>
+  <div class="bg-orb hero-orb-2"></div>
+  <div class="container">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <div class="tag">🔌 Teknologi IoT + AI</div>
+        <h1>Pantau & Kendalikan <span>Penggunaan Listrik</span> Anda Secara Cerdas</h1>
+        <p>Smart Energy Monitor hadir untuk membantu Anda memantau konsumsi listrik secara real-time, memprediksi tagihan, dan mengurangi pemborosan energi dengan kecerdasan buatan.</p>
+        <div class="hero-ctas">
+          <a href="https://wa.me/6285871328301?text=Halo!%20Saya%20tertarik%20untuk%20menghemat%20tagihan%20listrik%20saya%20dengan%20Smart%20Energy%20Monitor.%20Boleh%20minta%20info%20lebih%20lanjut%20cara%20pemesanannya%3F" target="_blank" class="btn btn-primary">⚡ Pesan Sekarang</a>
+          <a href="#how" class="btn btn-outline">▶ Lihat Cara Kerja</a>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-num">40%</div>
+            <div class="stat-label">Rata-rata penghematan listrik</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">5000+</div>
+            <div class="stat-label">Pengguna aktif</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">99.9%</div>
+            <div class="stat-label">Akurasi monitoring</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <div class="dashboard-card">
+          <div class="dash-header">
+            <span class="dash-title">🏠 Dashboard Rumah Saya</span>
+            <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+          </div>
+          <div class="dash-metrics">
+            <div class="metric-box">
+              <div class="metric-icon">⚡</div>
+              <div class="metric-val">220<span class="metric-unit">V</span></div>
+              <div class="metric-lbl">Tegangan</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-icon">🔌</div>
+              <div class="metric-val">8.4<span class="metric-unit">A</span></div>
+              <div class="metric-lbl">Arus</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-icon">💡</div>
+              <div class="metric-val">1.84<span class="metric-unit">kW</span></div>
+              <div class="metric-lbl">Daya</div>
+            </div>
+          </div>
+          <div class="chart-area">
+            <div class="chart-label"><span>Konsumsi 7 Hari Terakhir</span><span style="color:var(--cyan)">kWh</span></div>
+            <div class="chart-bars">
+              <div class="bar" style="height:55%"></div>
+              <div class="bar" style="height:70%"></div>
+              <div class="bar" style="height:45%"></div>
+              <div class="bar" style="height:80%"></div>
+              <div class="bar" style="height:60%"></div>
+              <div class="bar" style="height:90%"></div>
+              <div class="bar active" style="height:72%"></div>
+            </div>
+          </div>
+          <div class="prediction-bar">
+            <div>
+              <div class="pred-info">Prediksi Tagihan Bulan Ini</div>
+              <div class="pred-val">Rp 287.500</div>
+            </div>
+            <div class="pred-badge">↓ 18% lebih hemat</div>
+          </div>
+        </div>
+        <div class="floating-alert">
+          <div class="alert-icon">🔔</div>
+          <div>
+            <div class="alert-title">Peringatan Penggunaan Tinggi</div>
+            <div class="alert-sub">AC Kamar 2 menyala 8 jam berturut-turut</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">😓 Masalah yang Sering Terjadi</div>
+      <h2>Apakah Anda Mengalami Masalah Ini?</h2>
+      <p>Jutaan rumah tangga dan pelaku UMKM merugi setiap bulan karena tidak bisa mengontrol penggunaan listrik mereka.</p>
+    </div>
+    <div class="problems-grid">
+      <div class="prob-card reveal">
+        <span class="prob-emoji">📃</span>
+        <div class="prob-num">01</div>
+        <h3>Tagihan Listrik Membengkak</h3>
+        <p>Tagihan listrik naik setiap bulan tanpa tahu penyebabnya. Anda tidak punya data untuk mengidentifikasi pemborosan yang terjadi.</p>
+      </div>
+      <div class="prob-card reveal" style="transition-delay:.1s">
+        <span class="prob-emoji">🔍</span>
+        <div class="prob-num">02</div>
+        <h3>Tidak Tahu Konsumsi Per Alat</h3>
+        <p>Tidak bisa mengetahui perangkat mana yang paling boros listrik. AC, kulkas, atau mesin cuci? Semuanya terasa seperti misteri.</p>
+      </div>
+      <div class="prob-card reveal" style="transition-delay:.2s">
+        <span class="prob-emoji">💸</span>
+        <div class="prob-num">03</div>
+        <h3>Energi Terbuang Sia-sia</h3>
+        <p>Perangkat yang lupa dimatikan, standby mode yang tidak disadari, dan kebiasaan buruk penggunaan listrik menguras dompet Anda.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SOLUTION -->
+<section id="solution">
+  <div class="container">
+    <div class="solution-grid">
+      <div class="solution-visual reveal-left">
+        <div class="sol-device">
+          <div class="sol-device-top">
+            <div class="sol-device-dot" style="background:#ff5f57"></div>
+            <div class="sol-device-dot" style="background:#febc2e"></div>
+            <div class="sol-device-dot" style="background:#28c840"></div>
+          </div>
+          <div class="sol-screen">
+            <div class="sol-row">
+              <div class="sol-row-left">
+                <div class="sol-row-icon" style="background:rgba(0,229,160,.15)">❄️</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">AC Ruang Tamu</div>
+                  <div style="font-size:10px;color:var(--text-body)">Menyala 4j 20m</div>
+                </div>
+              </div>
+              <div class="sol-row-val" style="color:var(--cyan)">920W</div>
+            </div>
+            <div style="margin:6px 0">
+              <div class="sol-bar"><div class="sol-bar-fill" style="width:72%"></div></div>
+            </div>
+            <div class="sol-row">
+              <div class="sol-row-left">
+                <div class="sol-row-icon" style="background:rgba(255,201,64,.15)">💡</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">Lampu Semua Ruangan</div>
+                  <div style="font-size:10px;color:var(--text-body)">Aktif 8 titik</div>
+                </div>
+              </div>
+              <div class="sol-row-val" style="color:var(--gold)">420W</div>
+            </div>
+            <div style="margin:6px 0">
+              <div class="sol-bar"><div class="sol-bar-fill" style="width:35%"></div></div>
+            </div>
+            <div class="sol-row">
+              <div class="sol-row-left">
+                <div class="sol-row-icon" style="background:rgba(47,127,255,.15)">📺</div>
+                <div>
+                  <div style="font-size:12px;font-weight:600">TV & Hiburan</div>
+                  <div style="font-size:10px;color:var(--text-body)">Standby mode</div>
+                </div>
+              </div>
+              <div class="sol-row-val" style="color:var(--text-body)">85W</div>
+            </div>
+            <div style="margin:6px 0">
+              <div class="sol-bar"><div class="sol-bar-fill" style="width:12%"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="sol-floating">
+          <div class="sol-floating-label">Estimasi Penghematan Bulan Ini</div>
+          <div class="sol-floating-val">Rp 94.200</div>
+          <div class="sol-floating-sub">↑ 23% vs bulan lalu</div>
+        </div>
+      </div>
+      <div class="reveal-right">
+        <div class="solution-text">
+          <div class="tag">✅ Solusi Cerdas</div>
+          <h2>Satu Alat, Semua Jawaban Tentang Listrik Anda</h2>
+          <p>Smart Energy Monitor adalah perangkat IoT pintar yang terhubung ke jaringan listrik rumah Anda dan mengirim data real-time ke smartphone Anda kapan saja, di mana saja.</p>
+        </div>
+        <div class="solution-points">
+          <div class="sol-point">
+            <div class="sol-point-icon">📊</div>
+            <div>
+              <h4>Monitoring Real-time</h4>
+              <p>Data tegangan, arus, dan daya diperbarui setiap detik. Tidak ada informasi yang terlewat.</p>
+            </div>
+          </div>
+          <div class="sol-point">
+            <div class="sol-point-icon">🤖</div>
+            <div>
+              <h4>Prediksi Berbasis Machine Learning</h4>
+              <p>AI kami belajar dari pola penggunaan Anda dan memprediksi konsumsi listrik ke depan dengan akurasi tinggi.</p>
+            </div>
+          </div>
+          <div class="sol-point">
+            <div class="sol-point-icon">💰</div>
+            <div>
+              <h4>Estimasi Biaya Otomatis</h4>
+              <p>Hitung estimasi tagihan listrik PLN secara otomatis berdasarkan tarif yang berlaku di wilayah Anda.</p>
+            </div>
+          </div>
+          <div class="sol-point">
+            <div class="sol-point-icon">📱</div>
+            <div>
+              <h4>Akses Web & Mobile</h4>
+              <p>Dashboard tersedia di semua perangkat — smartphone, tablet, dan komputer — tanpa instalasi tambahan.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">⚙️ Fitur Unggulan</div>
+      <h2>Semua yang Anda Butuhkan untuk Kontrol Energi</h2>
+      <p>Dirancang dengan teknologi terkini untuk memberikan pengalaman monitoring listrik yang belum pernah ada sebelumnya.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feat-card reveal">
+        <div class="feat-icon">⚡</div>
+        <h3>Monitoring Tegangan, Arus & Daya</h3>
+        <p>Pantau tiga parameter listrik utama secara bersamaan dan real-time. Data akurat hingga desimal kedua.</p>
+        <span class="feat-highlight">→ Update setiap 1 detik</span>
+      </div>
+      <div class="feat-card reveal" style="transition-delay:.1s">
+        <div class="feat-icon">🧠</div>
+        <h3>Prediksi Konsumsi (Machine Learning)</h3>
+        <p>Algoritma ML kami menganalisis pola historis dan memprediksi konsumsi listrik 7–30 hari ke depan.</p>
+        <span class="feat-highlight">→ Akurasi prediksi 94.7%</span>
+      </div>
+      <div class="feat-card reveal" style="transition-delay:.2s">
+        <div class="feat-icon">🧮</div>
+        <h3>Estimasi Biaya Otomatis</h3>
+        <p>Hitung otomatis estimasi tagihan PLN Anda berdasarkan tarif per-golongan daya yang selalu diperbarui.</p>
+        <span class="feat-highlight">→ Tarif R1, R2, R3, B1, B2</span>
+      </div>
+      <div class="feat-card reveal">
+        <div class="feat-icon">📈</div>
+        <h3>Dashboard Interaktif</h3>
+        <p>Visualisasi data yang indah dan informatif. Grafik harian, mingguan, dan bulanan dalam satu tampilan.</p>
+        <span class="feat-highlight">→ Ekspor laporan PDF/CSV</span>
+      </div>
+      <div class="feat-card reveal" style="transition-delay:.1s">
+        <div class="feat-icon">🔔</div>
+        <h3>Notifikasi Cerdas</h3>
+        <p>Terima peringatan otomatis ketika penggunaan listrik melebihi batas yang Anda tentukan sendiri.</p>
+        <span class="feat-highlight">→ Push notif & WhatsApp</span>
+      </div>
+      <div class="feat-card reveal" style="transition-delay:.2s">
+        <div class="feat-icon">🔒</div>
+        <h3>Keamanan Data Terjamin</h3>
+        <p>Data Anda dienkripsi end-to-end dan disimpan di server berstandar ISO 27001. Privasi Anda adalah prioritas.</p>
+        <span class="feat-highlight">→ Enkripsi AES-256</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">🔧 Cara Kerja</div>
+      <h2>Teknologi Canggih, Penggunaan Mudah</h2>
+      <p>Dari sensor ke smartphone, semua berjalan otomatis hanya dalam hitungan milidetik.</p>
+    </div>
+    <div class="how-steps">
+      <div class="how-step reveal">
+        <div class="how-step-num">1</div>
+        <div class="how-step-icon">🔌</div>
+        <h3>Sensor Membaca Data</h3>
+        <p>Perangkat IoT dipasang di panel listrik dan membaca tegangan, arus, serta daya secara kontinu.</p>
+      </div>
+      <div class="how-step reveal" style="transition-delay:.15s">
+        <div class="how-step-num">2</div>
+        <div class="how-step-icon">📡</div>
+        <h3>Data Dikirim ke Cloud</h3>
+        <p>Data dikirim ke server cloud kami via WiFi dengan protokol MQTT yang ringan dan andal.</p>
+      </div>
+      <div class="how-step reveal" style="transition-delay:.3s">
+        <div class="how-step-num">3</div>
+        <div class="how-step-icon">🤖</div>
+        <h3>Diproses oleh AI</h3>
+        <p>Sistem machine learning menganalisis data, mendeteksi anomali, dan membuat prediksi konsumsi.</p>
+      </div>
+      <div class="how-step reveal" style="transition-delay:.45s">
+        <div class="how-step-num">4</div>
+        <div class="how-step-icon">📱</div>
+        <h3>Tampil di Dashboard Anda</h3>
+        <p>Hasil analisis ditampilkan di dashboard web dan mobile Anda secara real-time, kapan saja.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- BENEFITS -->
+<section id="benefits">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">🌟 Keuntungan Nyata</div>
+      <h2>Mengapa Ribuan Pengguna Memilih Kami</h2>
+      <p>Bukan sekadar alat ukur biasa — Smart Energy Monitor adalah investasi yang langsung terasa hasilnya.</p>
+    </div>
+    <div class="benefits-grid">
+      <div class="ben-card reveal">
+        <div class="ben-icon green">💰</div>
+        <div>
+          <h3>Hemat Biaya Listrik hingga 40%</h3>
+          <p>Pengguna kami rata-rata menghemat Rp 150.000–Rp 800.000 per bulan hanya dengan mengubah kebiasaan berdasarkan data dari Smart Energy Monitor.</p>
+        </div>
+      </div>
+      <div class="ben-card reveal" style="transition-delay:.1s">
+        <div class="ben-icon blue">🎯</div>
+        <div>
+          <h3>Kontrol Penuh di Tangan Anda</h3>
+          <p>Buat keputusan berdasarkan data nyata, bukan perkiraan. Ketahui persis berapa biaya yang dihabiskan setiap perangkat di rumah Anda.</p>
+        </div>
+      </div>
+      <div class="ben-card reveal">
+        <div class="ben-icon blue">⚡</div>
+        <div>
+          <h3>Data Akurat & Real-time</h3>
+          <p>Sensor presisi tinggi dengan akurasi ±0.5% memastikan setiap data yang Anda lihat adalah cerminan kondisi nyata jaringan listrik Anda.</p>
+        </div>
+      </div>
+      <div class="ben-card reveal" style="transition-delay:.1s">
+        <div class="ben-icon gold">😊</div>
+        <div>
+          <h3>Sangat Mudah Digunakan</h3>
+          <p>Pasang sekali, nikmati selamanya. Instalasi mudah dalam 10 menit, antarmuka intuitif, dan dukungan pelanggan 24/7 siap membantu Anda.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SHOWCASE -->
+<section id="showcase">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">🛠️ Produk Kami</div>
+      <h2>Hardware Kompak, Software Powerful</h2>
+      <p>Satu perangkat kecil yang membawa perubahan besar dalam cara Anda mengelola energi.</p>
+    </div>
+    <div class="showcase-grid">
+      <div class="showcase-device reveal-left" style="text-align:center">
+        <div class="device-body" style="display:inline-block;margin:0 auto">
+          <div class="device-led"></div>
+          <div class="device-screen">
+            <div class="device-screen-title">Smart Energy v2.0</div>
+            <div class="device-reading">
+              <div class="device-reading-label">TEGANGAN</div>
+              <div><span class="device-reading-val">220</span> <span class="device-reading-unit">Volt</span></div>
+            </div>
+            <div class="device-reading">
+              <div class="device-reading-label">ARUS</div>
+              <div><span class="device-reading-val">8.4</span> <span class="device-reading-unit">Ampere</span></div>
+            </div>
+            <div class="device-reading">
+              <div class="device-reading-label">DAYA</div>
+              <div><span class="device-reading-val">1.84</span> <span class="device-reading-unit">kW</span></div>
+            </div>
+            <div style="height:1px;background:var(--glass-border);margin:10px 0"></div>
+            <div style="font-size:8px;color:var(--green);text-align:center">● TERHUBUNG KE WIFI</div>
+          </div>
+          <div class="device-port"></div>
+        </div>
+        <div class="device-label">Smart Energy Monitor v2.0 — Perangkat IoT</div>
+        <div style="display:flex;gap:16px;justify-content:center;margin-top:20px;font-size:12px;color:var(--text-body)">
+          <span>📐 8×6×3 cm</span>
+          <span>📶 WiFi 2.4GHz</span>
+          <span>🔋 5V DC</span>
+        </div>
+      </div>
+      <div class="showcase-app reveal-right">
+        <div class="app-bar">
+          <div class="app-bar-dot" style="background:#ff5f57"></div>
+          <div class="app-bar-dot" style="background:#febc2e"></div>
+          <div class="app-bar-dot" style="background:#28c840"></div>
+          <div class="app-url">app.smartenergy.id/dashboard</div>
+        </div>
+        <div class="app-content">
+          <div class="app-heading">📊 Dashboard Monitoring</div>
+          <div class="app-cards">
+            <div class="app-mini">
+              <div class="app-mini-icon">⚡</div>
+              <div class="app-mini-val" style="color:var(--cyan)">1.84 kW</div>
+              <div class="app-mini-lbl">Daya Saat Ini</div>
+            </div>
+            <div class="app-mini">
+              <div class="app-mini-icon">📅</div>
+              <div class="app-mini-val" style="color:var(--gold)">42.3 kWh</div>
+              <div class="app-mini-lbl">Bulan Ini</div>
+            </div>
+            <div class="app-mini">
+              <div class="app-mini-icon">💰</div>
+              <div class="app-mini-val" style="color:var(--green)">Rp 287k</div>
+              <div class="app-mini-lbl">Prediksi Tagihan</div>
+            </div>
+            <div class="app-mini">
+              <div class="app-mini-icon">📉</div>
+              <div class="app-mini-val" style="color:var(--green)">-18%</div>
+              <div class="app-mini-lbl">vs Bulan Lalu</div>
+            </div>
+          </div>
+          <div class="app-chart">
+            <div class="app-chart-label"><span>Konsumsi Harian</span><span style="color:var(--cyan)">kWh</span></div>
+            <div class="app-bars">
+              <div class="app-bar-item" style="height:60%"></div>
+              <div class="app-bar-item" style="height:75%"></div>
+              <div class="app-bar-item" style="height:50%"></div>
+              <div class="app-bar-item hi" style="height:90%"></div>
+              <div class="app-bar-item" style="height:65%"></div>
+              <div class="app-bar-item" style="height:80%"></div>
+              <div class="app-bar-item" style="height:70%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section id="testimonials">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">💬 Kata Mereka</div>
+      <h2>Dipercaya oleh Ribuan Keluarga & UMKM</h2>
+      <p>Bukan janji kosong — ini cerita nyata dari pengguna yang merasakan manfaatnya langsung.</p>
+    </div>
+    <div class="testi-grid">
+      <div class="testi-card reveal">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"Tagihan listrik saya turun dari Rp 650.000 jadi Rp 420.000 per bulan setelah pakai Smart Energy Monitor. Ternyata AC yang sering lupa dimatikan jadi biang keroknya!"</p>
+        <div class="testi-author">
+          <div class="testi-avatar">👨</div>
+          <div>
+            <div class="testi-name">Budi Santoso</div>
+            <div class="testi-role">Pemilik Rumah, Surabaya</div>
+          </div>
+        </div>
+      </div>
+      <div class="testi-card reveal" style="transition-delay:.1s">
+        <div class="testi-stars">★★★★★</div>
+        <p class="testi-text">"Untuk usaha laundry saya, fitur prediksi biaya listrik sangat membantu dalam menghitung HPP produk. Tidak lagi kaget di akhir bulan. Highly recommended!"</p>
+        <div class="testi-author">
+          <div class="testi-avatar">👩</div>
+          <div>
+            <div class="testi-name">Siti Rahayu</div>
+            <div class="testi-role">Pemilik Laundry, Malang</div>
+          </div>
+        </div>
+      </div>
+      <div class="testi-card reveal" style="transition-delay:.2s">
+        <div class="testi-stars">★★★★☆</div>
+        <p class="testi-text">"Instalasi mudah, dashboard-nya intuitif. Anak-anak saya jadi lebih sadar hemat listrik setelah bisa lihat sendiri berapa rupiah yang habis setiap jam. Edukatif sekali!"</p>
+        <div class="testi-author">
+          <div class="testi-avatar">👨‍💼</div>
+          <div>
+            <div class="testi-name">Ahmad Fauzi</div>
+            <div class="testi-role">Kepala Keluarga, Bandung</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="container">
+    <div class="section-head reveal">
+      <div class="tag">💳 Paket & Harga</div>
+      <h2>Investasi Kecil, Penghematan Besar</h2>
+      <p>Pilih paket yang sesuai dengan kebutuhan Anda. Semua paket sudah termasuk perangkat IoT dan akses platform.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card reveal">
+        <div class="price-name">Starter</div>
+        <div class="price-desc">Untuk rumah tangga dengan 1 meteran listrik</div>
+        <div class="price-amount">
+          <span class="price-val">Rp 349k</span>
+          <span class="price-period"> /sekali beli</span>
+        </div>
+        <div class="price-hw">+ Biaya langganan Rp 29k/bln</div>
+        <ul class="price-features">
+          <li>1 Perangkat IoT</li>
+          <li>Monitoring real-time</li>
+          <li>Prediksi 7 hari ke depan</li>
+          <li>Estimasi tagihan PLN</li>
+          <li>Dashboard web & mobile</li>
+          <li class="no">Notifikasi WhatsApp</li>
+          <li class="no">Analisis per perangkat</li>
+          <li class="no">Ekspor laporan</li>
+        </ul>
+        <a href="https://wa.me/6285871328301?text=Halo!%20Saya%20ingin%20memesan%20*Paket%20Starter*%20Smart%20Energy%20Monitor%20untuk%20mulai%20mengontrol%20pemakaian%20listrik%20rumah%20saya.%20Bagaimana%20proses%20selanjutnya%3F" target="_blank" class="btn btn-outline" style="width:100%;justify-content:center">Pilih Starter</a>
+      </div>
+      <div class="price-card popular reveal" style="transition-delay:.1s">
+        <div class="popular-badge">🔥 Paling Populer</div>
+        <div class="price-name">Pro</div>
+        <div class="price-desc">Ideal untuk rumah besar dan UMKM kecil</div>
+        <div class="price-amount">
+          <span class="price-val">Rp 599k</span>
+          <span class="price-period"> /sekali beli</span>
+        </div>
+        <div class="price-hw">+ Biaya langganan Rp 59k/bln</div>
+        <ul class="price-features">
+          <li>1 Perangkat IoT</li>
+          <li>Monitoring real-time</li>
+          <li>Prediksi 30 hari ke depan</li>
+          <li>Estimasi tagihan PLN</li>
+          <li>Dashboard web & mobile</li>
+          <li>Notifikasi WhatsApp</li>
+          <li>Analisis per perangkat</li>
+          <li>Ekspor laporan PDF/CSV</li>
+        </ul>
+        <a href="https://wa.me/6285871328301?text=Halo!%20Saya%20tertarik%20dengan%20*Paket%20Pro*%20(Paling%20Populer)%20dari%20Smart%20Energy%20Monitor.%20Tolong%20pandu%20saya%20untuk%20proses%20pemesanannya%20ya." target="_blank" class="btn btn-primary" style="width:100%;justify-content:center">Pilih Pro</a>
+      </div>
+      <div class="price-card reveal" style="transition-delay:.2s">
+        <div class="price-name">Business</div>
+        <div class="price-desc">Untuk UMKM menengah dan gedung komersial</div>
+        <div class="price-amount">
+          <span class="price-val">Rp 1.299k</span>
+          <span class="price-period"> /sekali beli</span>
+        </div>
+        <div class="price-hw">+ Biaya langganan Rp 129k/bln</div>
+        <ul class="price-features">
+          <li>3 Perangkat IoT</li>
+          <li>Monitoring real-time</li>
+          <li>Prediksi 90 hari ke depan</li>
+          <li>Estimasi tagihan PLN</li>
+          <li>Dashboard multi-lokasi</li>
+          <li>Notifikasi WhatsApp + Email</li>
+          <li>Analisis per perangkat</li>
+          <li>Ekspor laporan & API akses</li>
+        </ul>
+        <a href="https://wa.me/6285871328301?text=Halo!%20Saya%20butuh%20solusi%20untuk%20efisiensi%20listrik%20bisnis%2Fusaha%20saya%20dan%20ingin%20memesan%20*Paket%20Business*%20Smart%20Energy%20Monitor.%20Boleh%20diskusi%20lebih%20lanjut%3F" target="_blank" class="btn btn-outline" style="width:100%;justify-content:center">Pilih Business</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section id="cta">
+  <div class="container">
+    <div class="cta-box reveal">
+      <div class="bg-orb cta-orb"></div>
+      <div class="tag" style="justify-content:center">🚀 Mulai Hari Ini</div>
+      <h2>Mulai Hemat Listrik <span style="background:linear-gradient(90deg,var(--blue-glow),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Sekarang Juga</span></h2>
+      <p>Bergabunglah dengan 5.000+ rumah tangga dan UMKM yang sudah merasakan manfaatnya. Garansi uang kembali 30 hari jika tidak puas.</p>
+      <div class="cta-btns">
+        <a href="https://wa.me/6285871328301?text=Halo!%20Saya%20tertarik%20untuk%20menghemat%20tagihan%20listrik%20saya%20dengan%20Smart%20Energy%20Monitor.%20Boleh%20minta%20info%20lebih%20lanjut%20cara%20pemesanannya%3F" target="_blank" class="btn btn-primary" style="font-size:16px;padding:16px 36px">⚡ Pesan Sekarang</a>
+        <a href="https://wa.me/6285871328301?text=Halo%20tim%20Smart%20Energy%20Monitor!%20Saya%20ingin%20berkonsultasi%20seputar%20solusi%20penghematan%20listrik%20yang%20tepat%20untuk%20kebutuhan%20saya." target="_blank" class="btn btn-outline" style="font-size:16px;padding:16px 36px">📱 Hubungi Kami</a>
+      </div>
+      <p style="margin-top:24px;font-size:13px;color:var(--text-body)">✓ Garansi 30 hari &nbsp;&nbsp; ✓ Pengiriman ke seluruh Indonesia &nbsp;&nbsp; ✓ Dukungan 24/7</p>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="logo" style="margin-bottom:12px;display:inline-flex">
+          <div class="logo-icon">⚡</div>
+          Smart Energy Monitor
+        </a>
+        <p>Solusi monitoring listrik berbasis IoT dan kecerdasan buatan untuk rumah dan bisnis Anda. Hemat energi, hemat biaya, untuk masa depan yang lebih baik.</p>
+        <div class="social-links">
+          <a href="#" class="social-link">📘</a>
+          <a href="#" class="social-link">📸</a>
+          <a href="#" class="social-link">🐦</a>
+          <a href="#" class="social-link">💼</a>
+          <a href="#" class="social-link">📺</a>
+        </div>
+      </div>
+      <div class="footer-col">
+        <h4>Produk</h4>
+        <ul>
+          <li><a href="#">Fitur</a></li>
+          <li><a href="#">Cara Kerja</a></li>
+          <li><a href="#">Harga</a></li>
+          <li><a href="#">Dokumentasi API</a></li>
+          <li><a href="#">Update & Rilis</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Perusahaan</h4>
+        <ul>
+          <li><a href="#">Tentang Kami</a></li>
+          <li><a href="#">Blog</a></li>
+          <li><a href="#">Karir</a></li>
+          <li><a href="#">Press Kit</a></li>
+          <li><a href="#">Mitra</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Bantuan</h4>
+        <ul>
+          <li><a href="#">Pusat Bantuan</a></li>
+          <li><a href="https://wa.me/6285871328301?text=Halo%20tim%20Smart%20Energy%20Monitor!%20Saya%20ingin%20berkonsultasi%20seputar%20solusi%20penghematan%20listrik%20yang%20tepat%20untuk%20kebutuhan%20saya." target="_blank">Kontak Kami</a></li>
+          <li><a href="#">Kebijakan Privasi</a></li>
+          <li><a href="#">Syarat & Ketentuan</a></li>
+          <li><a href="https://wa.me/6285871328301?text=Halo%20tim%20Smart%20Energy%20Monitor!%20Saya%20ingin%20berkonsultasi%20seputar%20solusi%20penghematan%20listrik%20yang%20tepat%20untuk%20kebutuhan%20saya." target="_blank" style="color:var(--cyan)">📞 0858-7132-8301</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2025 Smart Energy Monitor. Hak cipta dilindungi undang-undang.</p>
+      <div class="footer-badge">
+        <span class="footer-badge-dot"></span>
+        Semua sistem beroperasi normal
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal, .reveal-left, .reveal-right').forEach(el => observer.observe(el));
+
+// Bar animation on scroll
+const barObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting) {
+      e.target.querySelectorAll('.bar, .app-bar-item').forEach((b,i) => {
+        b.style.animationDelay = (i * 0.08) + 's';
+        b.style.animationPlayState = 'running';
+      });
+    }
+  });
+}, { threshold: .3 });
+document.querySelectorAll('.chart-bars, .app-bars').forEach(el => barObserver.observe(el));
+
+// Mobile menu
+function toggleMenu() {
+  const links = document.querySelector('.nav-links');
+  const cta = document.querySelector('.nav-cta');
+  if(!document.getElementById('mobile-menu')) {
+    const menu = document.createElement('div');
+    menu.id = 'mobile-menu';
+    menu.style.cssText = `position:fixed;top:72px;left:0;right:0;background:rgba(5,15,44,.97);backdrop-filter:blur(20px);border-bottom:1px solid rgba(79,158,255,.2);padding:20px 24px;z-index:99;display:flex;flex-direction:column;gap:16px;`;
+    ['Masalah','Fitur','Cara Kerja','Harga'].forEach((t,i) => {
+      const a = document.createElement('a');
+      a.href = ['#problem','#features','#how','#pricing'][i];
+      a.textContent = t;
+      a.style.cssText = 'color:#b8d0f0;text-decoration:none;font-size:16px;font-family:DM Sans,sans-serif;';
+      a.onclick = () => menu.remove();
+      menu.appendChild(a);
+    });
+    document.body.appendChild(menu);
+  } else {
+    document.getElementById('mobile-menu').remove();
+  }
+}
+
+// Animated counter for stats
+function animateNum(el, target, suffix='', prefix='') {
+  let start = 0; const duration = 1500; const step = target / (duration / 16);
+  const timer = setInterval(() => {
+    start = Math.min(start + step, target);
+    el.textContent = prefix + (target % 1 === 0 ? Math.floor(start).toLocaleString('id-ID') : start.toFixed(1)) + suffix;
+    if(start >= target) clearInterval(timer);
+  }, 16);
+}
+
+// Floating number animation
+const statObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if(e.isIntersecting && !e.target.animated) {
+      e.target.animated = true;
+      const nums = e.target.querySelectorAll('.stat-num');
+      const targets = [40, 5000, 99.9];
+      const suffixes = ['%', '+', '%'];
+      nums.forEach((n, i) => animateNum(n, targets[i], suffixes[i]));
+    }
+  });
+}, { threshold: .5 });
+const heroStats = document.querySelector('.hero-stats');
+if(heroStats) statObserver.observe(heroStats);
+</script>
+</body>
+</html>
