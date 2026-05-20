@@ -112,13 +112,7 @@ const LoginPage = () => {
             </button>
           </form>
           
-          <div className="mt-6 p-4 bg-slate-800/40 rounded-xl border border-slate-700/30">
-            <p className="text-xs text-slate-400 font-medium mb-2">Akun Demo:</p>
-            <div className="grid grid-cols-2 gap-2 text-xs text-slate-400">
-              <div><span className="text-slate-300">Admin:</span> admin / admin123</div>
-              <div><span className="text-slate-300">User:</span> user / user123</div>
-            </div>
-          </div>
+
         </div>
       </div>
     </div>

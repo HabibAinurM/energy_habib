@@ -12,6 +12,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <Preferences.h>
+#include <WiFiClientSecure.h>
 
 // ─── PIN ─────────────────────────────────────────────────────
 #define PZEM_RX_PIN       16
@@ -33,12 +34,20 @@ char g_serverIp[40];
 char g_serverPort[8];
 char g_deviceId[32];
 
-// URL dibangun otomatis dari IP + Port
+// URL dibangun otomatis dari IP + Port (Mendukung HTTP & HTTPS)
 char g_apiUrl[128];
 void buildApiUrl() {
-  snprintf(g_apiUrl, sizeof(g_apiUrl),
-           "http://%s:%s/api/sensor-data",
-           g_serverIp, g_serverPort);
+  String portStr = String(g_serverPort);
+  // Jika port 443 atau kosong, asumsikan HTTPS
+  if (portStr == "443" || portStr == "") {
+    snprintf(g_apiUrl, sizeof(g_apiUrl),
+             "https://%s/api/sensor-data",
+             g_serverIp);
+  } else {
+    snprintf(g_apiUrl, sizeof(g_apiUrl),
+             "http://%s:%s/api/sensor-data",
+             g_serverIp, g_serverPort);
+  }
 }
 
 WiFiManager wifiManager;
@@ -261,8 +270,20 @@ void loop() {
   lcd.printf("P:%.0f E:%.2f",p,e);
 
   if(WiFi.status()==WL_CONNECTED){
+    bool isHttps = String(g_apiUrl).startsWith("https");
     HTTPClient http;
-    http.begin(g_apiUrl);
+    
+    if (isHttps) {
+      WiFiClientSecure *client = new WiFiClientSecure;
+      if (client) {
+        client->setInsecure(); // Mengabaikan verifikasi sertifikat SSL untuk kemudahan
+        http.begin(*client, g_apiUrl);
+      }
+    } else {
+      WiFiClient client;
+      http.begin(client, g_apiUrl);
+    }
+
     http.addHeader("Content-Type","application/json");
 
     StaticJsonDocument<256> doc;
@@ -288,7 +309,7 @@ void loop() {
       String resp = http.getString();
       Serial.println("[HTTP] Response: " + resp);
     } else {
-      Serial.println("[HTTP] ERROR - Cek IP/Port server!");
+      Serial.println("[HTTP] ERROR - " + http.errorToString(code));
     }
 
     http.end();

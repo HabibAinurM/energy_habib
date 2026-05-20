@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: energy-monitor-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password_here
+      MYSQL_DATABASE: energy_monitor
+      MYSQL_USER: energy_user
+      MYSQL_PASSWORD: energy_password_here
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password_here"]
+      timeout: 5s
+      retries: 10
+      interval: 5s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: energy-monitor-app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=energy_monitor
+      - DB_USER=energy_user
+      - DB_PASSWORD=energy_password_here
+      - NODE_ENV=production
+      - PORT=8000
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
