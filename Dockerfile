@@ -11,8 +11,14 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Setup the backend app
-FROM node:18-alpine
+FROM node:18-bullseye-slim
 WORKDIR /app
+
+# Install Python3, pip, and ML dependencies for .h5 model predictions
+# Kami menambahkan parameter khusus agar pip tidak memunculkan peringatan
+RUN apt-get update && apt-get install -y python3 python3-pip \
+    && pip3 install --no-cache-dir tensorflow numpy pandas h5py \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy backend packages and install production-only dependencies
 COPY backend/package*.json ./backend/

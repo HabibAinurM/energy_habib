@@ -9,9 +9,9 @@ async function setup() {
   console.log('[0/5] Mengecek koneksi ke MySQL...');
   try {
     await sequelize.authenticate();
-    console.log('      ✓ Koneksi MySQL berhasil!\n');
+    console.log('       Koneksi MySQL berhasil!\n');
   } catch (err) {
-    console.error('      ✗ Gagal koneksi! Pastikan XAMPP MySQL sudah START');
+    console.error('       Gagal koneksi! Pastikan XAMPP MySQL sudah START');
     console.error('      Error:', err.message);
     process.exit(1);
   }
@@ -55,7 +55,7 @@ async function setup() {
   });
   console.log('      ✓ Settings siap');
 
-  console.log('\n✅ Setup selesai! Jalankan: npm run dev\n');
+  console.log('\n Setup selesai! Jalankan: npm run dev\n');
   process.exit(0);
 }
 

@@ -240,20 +240,24 @@ router.get('/generate-sample-data', authenticate, async (req, res) => {
     const start = new Date(now);
     start.setDate(start.getDate() - 180); // 6 months back
 
-    for (let i = 0; i < 180 * 24; i++) {
-      const t = new Date(start.getTime() + i * 3600 * 1000);
+    for (let i = 0; i < 180 * 24 * 4; i++) {
+      const t = new Date(start.getTime() + i * 15 * 60 * 1000);
       const hour = t.getHours();
       const baseDaya = 150 + (hour >= 6 && hour <= 22 ? 120 : 20);
       const daya = Math.max(0, baseDaya + (Math.random() - 0.5) * 60);
       const tegangan = 220 + (Math.random() - 0.5) * 8;
       const arus = daya / tegangan;
-      const energi = daya / 1000;
+      const energi = (daya * 0.25) / 1000;
+      const frekuensi = 49.8 + Math.random() * 0.4;
+      const faktorDaya = 0.82 + Math.random() * 0.16;
 
       records.push({ 
         tegangan: +tegangan.toFixed(2), 
         arus: +arus.toFixed(3), 
         daya: +daya.toFixed(1), 
         energi: +energi.toFixed(4), 
+        frekuensi: +frekuensi.toFixed(2),
+        faktorDaya: +faktorDaya.toFixed(2),
         deviceId: device.id,
         timestamp: t 
       });

@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "setup": "node src/scripts/setup.js",
     "seed": "node src/scripts/seedData.js",
-  "proxy": "http://localhost:3006"
+    "proxy": "http://localhost:3006"
   },
   "dependencies": {
     "express": "^4.18.2",

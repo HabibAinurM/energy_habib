@@ -34,6 +34,27 @@ char g_serverIp[40];
 char g_serverPort[8];
 char g_deviceId[32];
 
+// ─── KONFIGURASI INTERVAL ────────────────────────────────────
+// LCD & pembacaan sensor : setiap 5 detik (real-time)
+// Pengiriman ke server   : setiap 15 menit (ideal untuk LSTM dataset)
+const unsigned long READ_INTERVAL_MS = 5000UL;         // 5 detik
+const unsigned long SEND_INTERVAL_MS = 900000UL;       // 15 menit (900 detik)
+
+// ─── AKUMULATOR DATA SENSOR ──────────────────────────────────
+// Digunakan untuk menghitung rata-rata selama 15 menit
+float acc_v  = 0;   // Akumulasi tegangan (Volt)
+float acc_i  = 0;   // Akumulasi arus (Ampere)
+float acc_p  = 0;   // Akumulasi daya (Watt)
+float acc_f  = 0;   // Akumulasi frekuensi (Hz)
+float acc_pf = 0;   // Akumulasi faktor daya
+float max_p  = 0;   // Daya puncak selama interval (Watt)
+float energy_start = 0; // Nilai energi kWh saat awal interval
+bool  energy_initialized = false; // Flag apakah energy_start sudah diisi
+int   sample_count = 0; // Jumlah sampel yang terkumpul
+
+unsigned long lastReadTime = 0;  // Waktu terakhir baca sensor
+unsigned long lastSendTime = 0;  // Waktu terakhir kirim ke server
+
 // URL dibangun otomatis dari IP + Port (Mendukung HTTP & HTTPS)
 char g_apiUrl[128];
 void buildApiUrl() {
@@ -241,81 +262,151 @@ void setup() {
   }
 }
 
+// ─── FUNGSI KIRIM DATA AGREGAT KE SERVER ────────────────────
+void sendAggregatedData(float avg_v, float avg_i, float avg_p,
+                         float avg_f, float avg_pf,
+                         float peak_p, float delta_e) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[WiFi] Tidak terhubung, data agregat dilewati.");
+    return;
+  }
+
+  bool isHttps = String(g_apiUrl).startsWith("https");
+  HTTPClient http;
+
+  if (isHttps) {
+    WiFiClientSecure *client = new WiFiClientSecure;
+    if (client) {
+      client->setInsecure();
+      http.begin(*client, g_apiUrl);
+    }
+  } else {
+    WiFiClient client;
+    http.begin(client, g_apiUrl);
+  }
+
+  http.addHeader("Content-Type", "application/json");
+
+  // Kirim nilai RATA-RATA interval 15 menit ke server
+  // Nilai ini yang akan masuk ke database dan dipakai dataset LSTM
+  StaticJsonDocument<300> doc;
+  doc["tegangan"]   = avg_v;    // Rata-rata tegangan (V)
+  doc["arus"]       = avg_i;    // Rata-rata arus (A)
+  doc["daya"]       = avg_p;    // Rata-rata daya (W)
+  doc["energi"]     = delta_e;  // Energi yang dikonsumsi dalam 15 menit ini (kWh)
+  doc["frekuensi"]  = avg_f;    // Rata-rata frekuensi (Hz)
+  doc["faktorDaya"] = avg_pf;   // Rata-rata faktor daya
+  doc["maxDaya"]    = peak_p;   // Daya puncak dalam interval (W)
+  doc["deviceId"]   = g_deviceId;
+  doc["interval"]   = "15min";  // Flag penanda interval data
+
+  String payload;
+  serializeJson(doc, payload);
+
+  Serial.println("\n[SEND-15MIN] Mengirim data agregat ke server...");
+  Serial.printf("  Avg V: %.2f | Avg I: %.3f | Avg P: %.1f W\n", avg_v, avg_i, avg_p);
+  Serial.printf("  Peak P: %.1f W | Delta E: %.5f kWh\n", peak_p, delta_e);
+
+  int code = http.POST(payload);
+  Serial.printf("[HTTP] Response Code: %d\n", code);
+
+  if (code > 0) {
+    Serial.println("[HTTP] ✅ Data berhasil dikirim!");
+  } else {
+    Serial.println("[HTTP] ❌ ERROR: " + http.errorToString(code));
+  }
+  http.end();
+}
+
 // ================= LOOP =================
 void loop() {
+  unsigned long now = millis();
 
-  if(digitalRead(BTN_RESET)==LOW){
+  // ─── TOMBOL RESET WIFI ──────────────────────────────────────
+  if (digitalRead(BTN_RESET) == LOW) {
     delay(3000);
     wifiManager.resetSettings();
     ESP.restart();
   }
 
-  float v = pzem.voltage();
-  float i = pzem.current();
-  float p = pzem.power();
-  float e = pzem.energy();
-  float f = pzem.frequency();
-  float pf = pzem.pf();
+  // ─── BACA SENSOR SETIAP 5 DETIK ─────────────────────────────
+  // Hanya baca jika sudah lewat READ_INTERVAL_MS (5 detik)
+  if (now - lastReadTime >= READ_INTERVAL_MS) {
+    lastReadTime = now;
 
-  if(isnan(v)){
-    lcd.setCursor(0,0);
-    lcd.print("Sensor Error   ");
-    return;
-  }
+    float v  = pzem.voltage();
+    float i  = pzem.current();
+    float p  = pzem.power();
+    float e  = pzem.energy();  // Nilai kumulatif total kWh dari PZEM
+    float f  = pzem.frequency();
+    float pf = pzem.pf();
 
-  lcd.setCursor(0,0);
-  lcd.printf("V:%.1f I:%.2f",v,i);
-
-  lcd.setCursor(0,1);
-  lcd.printf("P:%.0f E:%.2f",p,e);
-
-  if(WiFi.status()==WL_CONNECTED){
-    bool isHttps = String(g_apiUrl).startsWith("https");
-    HTTPClient http;
-    
-    if (isHttps) {
-      WiFiClientSecure *client = new WiFiClientSecure;
-      if (client) {
-        client->setInsecure(); // Mengabaikan verifikasi sertifikat SSL untuk kemudahan
-        http.begin(*client, g_apiUrl);
-      }
-    } else {
-      WiFiClient client;
-      http.begin(client, g_apiUrl);
+    // Lewati jika sensor error
+    if (isnan(v) || isnan(i)) {
+      lcd.setCursor(0, 0);
+      lcd.print("Sensor Error   ");
+      lcd.setCursor(0, 1);
+      lcd.print("               ");
+      return;
     }
 
-    http.addHeader("Content-Type","application/json");
+    // ── TAMPILKAN NILAI REAL-TIME DI LCD ──────────────────────
+    // LCD selalu menampilkan nilai terbaru setiap 5 detik
+    lcd.setCursor(0, 0);
+    lcd.printf("V:%.1f I:%.3f ", v, i);
+    lcd.setCursor(0, 1);
+    lcd.printf("P:%.0fW %ds    ",
+      p,
+      (int)((SEND_INTERVAL_MS - (now - lastSendTime)) / 1000)
+    );
+    // Baris bawah LCD juga menampilkan hitung mundur detik menuju pengiriman berikutnya
 
-    StaticJsonDocument<256> doc;
-    doc["tegangan"]=v;
-    doc["arus"]=i;
-    doc["daya"]=p;
-    doc["energi"]=e;
-    doc["frekuensi"]=f;
-    doc["faktorDaya"]=pf;
-    doc["deviceId"]=g_deviceId;
-
-    String payload;
-    serializeJson(doc, payload);
-
-    Serial.println("[HTTP] Mengirim ke: " + String(g_apiUrl));
-    Serial.println("[HTTP] Payload: " + payload);
-
-    int code = http.POST(payload);
-    Serial.print("[HTTP] Response Code: ");
-    Serial.println(code);
-
-    if(code > 0){
-      String resp = http.getString();
-      Serial.println("[HTTP] Response: " + resp);
-    } else {
-      Serial.println("[HTTP] ERROR - " + http.errorToString(code));
+    // ── INISIALISASI ENERGY BASELINE (pertama kali atau setelah reset) ───
+    if (!energy_initialized) {
+      energy_start       = e;
+      energy_initialized = true;
+      Serial.printf("[INIT] Energy baseline diset: %.5f kWh\n", energy_start);
     }
 
-    http.end();
-  } else {
-    Serial.println("[WiFi] Tidak terhubung!");
+    // ── AKUMULASI DATA UNTUK RATA-RATA 15 MENIT ──────────────
+    acc_v  += v;
+    acc_i  += i;
+    acc_p  += p;
+    acc_f  += (isnan(f)  ? 50.0 : f);
+    acc_pf += (isnan(pf) ? 1.0  : pf);
+    if (p > max_p) max_p = p;  // Catat daya puncak
+    sample_count++;
+
+    Serial.printf("[READ] Sampel #%d | V:%.1f I:%.3f P:%.1f E:%.5f\n",
+      sample_count, v, i, p, e);
   }
 
-  delay(5000);
+  // ─── KIRIM DATA KE SERVER SETIAP 15 MENIT ───────────────────
+  // Setelah 15 menit (900.000 ms), hitung rata-rata dan kirim ke server
+  if (now - lastSendTime >= SEND_INTERVAL_MS && sample_count > 0) {
+    lastSendTime = now;
+
+    // Hitung nilai rata-rata dari semua sampel yang terkumpul
+    float avg_v  = acc_v  / sample_count;
+    float avg_i  = acc_i  / sample_count;
+    float avg_p  = acc_p  / sample_count;
+    float avg_f  = acc_f  / sample_count;
+    float avg_pf = acc_pf / sample_count;
+
+    // Hitung energi yang dikonsumsi dalam interval ini (delta kWh)
+    float current_e = pzem.energy();
+    float delta_e   = (current_e >= energy_start)
+                      ? (current_e - energy_start)
+                      : current_e; // Tangani jika PZEM di-reset
+    energy_start = current_e; // Update baseline untuk interval berikutnya
+
+    Serial.printf("\n[AGG] Interval selesai. %d sampel dikumpulkan.\n", sample_count);
+
+    // Kirim data teragregasi ke server
+    sendAggregatedData(avg_v, avg_i, avg_p, avg_f, avg_pf, max_p, delta_e);
+
+    // ── RESET AKUMULATOR UNTUK INTERVAL BERIKUTNYA ──────────
+    acc_v = acc_i = acc_p = acc_f = acc_pf = max_p = 0;
+    sample_count = 0;
+  }
 }

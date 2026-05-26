@@ -15,9 +15,9 @@ const f = (obj, camel, snake) => obj[camel] ?? obj[snake] ?? null;
 
 const PrediksiPage = () => {
   const [predictions, setPredictions] = useState([]);
-  const [comparison, setComparison]   = useState({ actual: [], predictions: [] });
-  const [loading, setLoading]         = useState(true);
-  const [generating, setGenerating]   = useState(false);
+  const [comparison, setComparison] = useState({ actual: [], predictions: [] });
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   const loadData = async () => {
     try {
@@ -54,24 +54,24 @@ const PrediksiPage = () => {
 
   // ── Normalisasi field prediksi (camelCase dari Node.js) ──────────────────
   const normalPreds = predictions.map((d) => ({
-    tanggal_prediksi:  f(d, 'tanggalPrediksi',  'tanggal_prediksi'),
-    prediksi_energi:   f(d, 'prediksiEnergi',   'prediksi_energi')   ?? 0,
-    prediksi_biaya:    f(d, 'prediksiBiaya',     'prediksi_biaya')    ?? 0,
-    confidence_lower:  f(d, 'confidenceLower',   'confidence_lower')  ?? 0,
-    confidence_upper:  f(d, 'confidenceUpper',   'confidence_upper')  ?? 0,
+    tanggal_prediksi: f(d, 'tanggalPrediksi', 'tanggal_prediksi'),
+    prediksi_energi: f(d, 'prediksiEnergi', 'prediksi_energi') ?? 0,
+    prediksi_biaya: f(d, 'prediksiBiaya', 'prediksi_biaya') ?? 0,
+    confidence_lower: f(d, 'confidenceLower', 'confidence_lower') ?? 0,
+    confidence_upper: f(d, 'confidenceUpper', 'confidence_upper') ?? 0,
   })).filter((d) => d.tanggal_prediksi); // buang yang tanggalnya null
 
   // ── Normalisasi field comparison ─────────────────────────────────────────
   const normalActual = (comparison.actual || []).map((d) => ({
-    tanggal:      f(d, 'tanggal', 'tanggal'),
+    tanggal: f(d, 'tanggal', 'tanggal'),
     total_energi: f(d, 'totalEnergi', 'total_energi') ?? 0,
-    total_biaya:  f(d, 'totalBiaya',  'total_biaya')  ?? 0,
+    total_biaya: f(d, 'totalBiaya', 'total_biaya') ?? 0,
   })).filter((d) => d.tanggal);
 
   const normalCompPreds = (comparison.predictions || []).map((d) => ({
     tanggal_prediksi: f(d, 'tanggalPrediksi', 'tanggal_prediksi'),
-    prediksi_energi:  f(d, 'prediksiEnergi',  'prediksi_energi')  ?? 0,
-    prediksi_biaya:   f(d, 'prediksiBiaya',   'prediksi_biaya')   ?? 0,
+    prediksi_energi: f(d, 'prediksiEnergi', 'prediksi_energi') ?? 0,
+    prediksi_biaya: f(d, 'prediksiBiaya', 'prediksi_biaya') ?? 0,
   })).filter((d) => d.tanggal_prediksi);
 
   // ── Format tanggal dengan aman ───────────────────────────────────────────
@@ -177,7 +177,7 @@ const PrediksiPage = () => {
   };
 
   const totalPredEnergy = normalPreds.reduce((a, b) => a + b.prediksi_energi, 0);
-  const totalPredBiaya  = normalPreds.reduce((a, b) => a + b.prediksi_biaya,  0);
+  const totalPredBiaya = normalPreds.reduce((a, b) => a + b.prediksi_biaya, 0);
 
   return (
     <div className="space-y-6">
@@ -185,7 +185,7 @@ const PrediksiPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-display font-bold text-white">Prediksi Energi</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Prediksi konsumsi menggunakan Holt's Exponential Smoothing</p>
+          <p className="text-slate-400 text-sm mt-0.5">Prediksi konsumsi menggunakan LSTM</p>
         </div>
         <button
           onClick={handleGenerate}
@@ -193,7 +193,7 @@ const PrediksiPage = () => {
           className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-medium text-sm transition-all shadow-lg shadow-blue-600/30 disabled:opacity-60"
         >
           {generating
-            ? <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+            ? <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
             : <Brain className="w-4 h-4" />}
           {generating ? 'Memproses...' : 'Generate Prediksi'}
         </button>
@@ -258,7 +258,7 @@ const PrediksiPage = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-800/40">
-                {['Tanggal','Prediksi Energi (kWh)','Batas Bawah','Batas Atas','Estimasi Biaya'].map((h) => (
+                {['Tanggal', 'Prediksi Energi (kWh)', 'Batas Bawah', 'Batas Atas', 'Estimasi Biaya'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wide">{h}</th>
                 ))}
               </tr>
