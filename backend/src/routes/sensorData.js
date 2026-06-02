@@ -5,6 +5,9 @@ const { authenticate } = require('../middleware/auth');
 const { checkSensorAlerts } = require('../services/alertService');
 const { broadcastSensorUpdate } = require('../services/wsService');
 
+// Cache untuk menyimpan data realtime terbaru tanpa perlu insert ke database
+const realtimeCache = {};
+
 // Helper: update atau create daily aggregation
 async function updateDailyAggregation(sensorData, userId) {
   const dateStr = new Date(sensorData.timestamp).toISOString().slice(0, 10);
@@ -20,17 +23,10 @@ async function updateDailyAggregation(sensorData, userId) {
   });
   if (!rows.length) return;
 
-  // ─── PZEM mengirim nilai energi KUMULATIF (akumulasi sejak reset) ─────────
-  // Cara benar: hitung selisih antar pembacaan berurutan (delta positif saja),
-  // lalu jumlahkan. Ini menangani kasus reset PZEM di tengah hari (nilai turun).
-  const energiValues = rows.map(r => r.energi);
-  let totalEnergi = 0;
-  for (let i = 1; i < energiValues.length; i++) {
-    const delta = energiValues[i] - energiValues[i - 1];
-    if (delta > 0) totalEnergi += delta; // abaikan jika negatif (PZEM di-reset)
-  }
-  // Jika hanya ada 1 baris data hari ini, gunakan nilainya langsung
-  if (rows.length === 1) totalEnergi = energiValues[0];
+  // ─── ESP32 mengirim nilai energi per interval (delta) ─────────
+  // Karena ESP32 sudah menghitung selisih (delta_e) per pengiriman,
+  // kita cukup menjumlahkan seluruh nilai energi untuk mendapatkan total harian.
+  const totalEnergi = rows.reduce((s, r) => s + r.energi, 0);
 
   const avgTeg  = rows.reduce((s, r) => s + r.tegangan, 0) / rows.length;
   const avgArus = rows.reduce((s, r) => s + r.arus, 0) / rows.length;
@@ -131,6 +127,22 @@ router.post('/', async (req, res) => {
     if (mapped.frekuensi   != null) payload.frekuensi  = mapped.frekuensi;
     if (mapped.faktorDaya  != null) payload.faktorDaya = mapped.faktorDaya;
 
+    // Jika ini adalah data realtime (tiap 5 detik), jangan simpan ke DB
+    // Cukup update cache dan broadcast via WebSocket
+    if (req.body.interval === 'realtime') {
+      payload.id = Date.now(); // Dummy ID
+      realtimeCache[payload.deviceId] = payload;
+      
+      setImmediate(async () => {
+        try {
+          const tarif = await TarifListrik.findOne({ where: { userId: deviceRecord.userId, isActive: true } });
+          broadcastSensorUpdate(payload, tarif?.hargaPerKwh ?? 1444.70);
+        } catch(e) { console.error(e); }
+      });
+      return res.status(200).json({ message: 'Realtime updated' });
+    }
+
+    // Jika bukan realtime (yaitu 15min), simpan ke database
     const data = await SensorData.create(payload);
 
     // Background tasks (non-blocking)
@@ -168,10 +180,24 @@ router.get('/realtime', authenticate, async (req, res) => {
   
   if (!deviceIds.length) return res.status(404).json({ message: 'Belum ada perangkat' });
 
-  const latest = await SensorData.findOne({ 
-    where: { deviceId: { [Op.in]: deviceIds } },
-    order: [['timestamp', 'DESC']] 
-  });
+  // Cari di cache realtime terlebih dahulu agar dashboard cepat
+  let latest = null;
+  for (const id of deviceIds) {
+    if (realtimeCache[id]) {
+      if (!latest || realtimeCache[id].timestamp > latest.timestamp) {
+        latest = realtimeCache[id];
+      }
+    }
+  }
+
+  // Jika belum ada di cache (misal server baru restart), ambil dari database 15-menit terakhir
+  if (!latest) {
+    latest = await SensorData.findOne({ 
+      where: { deviceId: { [Op.in]: deviceIds } },
+      order: [['timestamp', 'DESC']] 
+    });
+  }
+
   if (!latest) return res.status(404).json({ message: 'Belum ada data' });
   return res.json(latest);
 });

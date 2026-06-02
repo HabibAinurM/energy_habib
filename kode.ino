@@ -26,9 +26,9 @@ PZEM004Tv30 pzem(Serial2, PZEM_RX_PIN, PZEM_TX_PIN);
 Preferences prefs;
 
 // ─── DEFAULT CONFIG ──────────────────────────────────────────
-#define DEFAULT_SERVER_IP   "192.168.1.4"
-#define DEFAULT_SERVER_PORT "3006"
-#define DEFAULT_DEVICE_ID   "pzem-001"
+#define DEFAULT_SERVER_IP   "energimeter.tifpsdku.com"
+#define DEFAULT_SERVER_PORT "443"
+#define DEFAULT_DEVICE_ID   "D1"
 
 char g_serverIp[40];
 char g_serverPort[8];
@@ -273,49 +273,97 @@ void sendAggregatedData(float avg_v, float avg_i, float avg_p,
 
   bool isHttps = String(g_apiUrl).startsWith("https");
   HTTPClient http;
+  WiFiClient *client = nullptr;
 
   if (isHttps) {
-    WiFiClientSecure *client = new WiFiClientSecure;
-    if (client) {
-      client->setInsecure();
-      http.begin(*client, g_apiUrl);
+    WiFiClientSecure *secureClient = new WiFiClientSecure;
+    if (secureClient) {
+      secureClient->setInsecure();
+      client = secureClient;
     }
   } else {
-    WiFiClient client;
-    http.begin(client, g_apiUrl);
+    client = new WiFiClient;
   }
 
-  http.addHeader("Content-Type", "application/json");
+  if (client) {
+    http.begin(*client, g_apiUrl);
+    http.addHeader("Content-Type", "application/json");
 
-  // Kirim nilai RATA-RATA interval 15 menit ke server
-  // Nilai ini yang akan masuk ke database dan dipakai dataset LSTM
-  StaticJsonDocument<300> doc;
-  doc["tegangan"]   = avg_v;    // Rata-rata tegangan (V)
-  doc["arus"]       = avg_i;    // Rata-rata arus (A)
-  doc["daya"]       = avg_p;    // Rata-rata daya (W)
-  doc["energi"]     = delta_e;  // Energi yang dikonsumsi dalam 15 menit ini (kWh)
-  doc["frekuensi"]  = avg_f;    // Rata-rata frekuensi (Hz)
-  doc["faktorDaya"] = avg_pf;   // Rata-rata faktor daya
-  doc["maxDaya"]    = peak_p;   // Daya puncak dalam interval (W)
-  doc["deviceId"]   = g_deviceId;
-  doc["interval"]   = "15min";  // Flag penanda interval data
+    // Kirim nilai RATA-RATA interval 15 menit ke server
+    // Nilai ini yang akan masuk ke database dan dipakai dataset LSTM
+    StaticJsonDocument<300> doc;
+    doc["tegangan"]   = avg_v;    // Rata-rata tegangan (V)
+    doc["arus"]       = avg_i;    // Rata-rata arus (A)
+    doc["daya"]       = avg_p;    // Rata-rata daya (W)
+    doc["energi"]     = delta_e;  // Energi yang dikonsumsi dalam 15 menit ini (kWh)
+    doc["frekuensi"]  = avg_f;    // Rata-rata frekuensi (Hz)
+    doc["faktorDaya"] = avg_pf;   // Rata-rata faktor daya
+    doc["maxDaya"]    = peak_p;   // Daya puncak dalam interval (W)
+    doc["deviceId"]   = g_deviceId;
+    doc["interval"]   = "15min";  // Flag penanda interval data
 
-  String payload;
-  serializeJson(doc, payload);
+    String payload;
+    serializeJson(doc, payload);
 
-  Serial.println("\n[SEND-15MIN] Mengirim data agregat ke server...");
-  Serial.printf("  Avg V: %.2f | Avg I: %.3f | Avg P: %.1f W\n", avg_v, avg_i, avg_p);
-  Serial.printf("  Peak P: %.1f W | Delta E: %.5f kWh\n", peak_p, delta_e);
+    Serial.println("\n[SEND-15MIN] Mengirim data agregat ke server...");
+    Serial.printf("  Avg V: %.2f | Avg I: %.3f | Avg P: %.1f W\n", avg_v, avg_i, avg_p);
+    Serial.printf("  Peak P: %.1f W | Delta E: %.5f kWh\n", peak_p, delta_e);
 
-  int code = http.POST(payload);
-  Serial.printf("[HTTP] Response Code: %d\n", code);
+    int code = http.POST(payload);
+    Serial.printf("[HTTP] Response Code: %d\n", code);
 
-  if (code > 0) {
-    Serial.println("[HTTP] ✅ Data berhasil dikirim!");
+    if (code > 0) {
+      Serial.println("[HTTP] ✅ Data berhasil dikirim!");
+    } else {
+      Serial.println("[HTTP] ❌ ERROR: " + http.errorToString(code));
+    }
+    
+    http.end();
+    delete client; // Mencegah memory leak!
   } else {
-    Serial.println("[HTTP] ❌ ERROR: " + http.errorToString(code));
+    Serial.println("[HTTP] ❌ ERROR: Gagal membuat WiFiClient");
   }
-  http.end();
+}
+
+// ─── FUNGSI KIRIM DATA REALTIME KE SERVER ───────────────────
+void sendRealtimeData(float v, float i, float p, float f, float pf, float e) {
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  bool isHttps = String(g_apiUrl).startsWith("https");
+  HTTPClient http;
+  WiFiClient *client = nullptr;
+
+  if (isHttps) {
+    WiFiClientSecure *secureClient = new WiFiClientSecure;
+    if (secureClient) {
+      secureClient->setInsecure();
+      client = secureClient;
+    }
+  } else {
+    client = new WiFiClient;
+  }
+
+  if (client) {
+    http.begin(*client, g_apiUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    StaticJsonDocument<300> doc;
+    doc["tegangan"]   = v;
+    doc["arus"]       = i;
+    doc["daya"]       = p;
+    doc["energi"]     = e; // Nilai kumulatif asli untuk tampilan saja
+    doc["frekuensi"]  = f;
+    doc["faktorDaya"] = pf;
+    doc["deviceId"]   = g_deviceId;
+    doc["interval"]   = "realtime";  // Flag penanda data realtime (tidak disimpan di DB harian)
+
+    String payload;
+    serializeJson(doc, payload);
+
+    int code = http.POST(payload);
+    http.end();
+    delete client;
+  }
 }
 
 // ================= LOOP =================
@@ -360,6 +408,9 @@ void loop() {
       (int)((SEND_INTERVAL_MS - (now - lastSendTime)) / 1000)
     );
     // Baris bawah LCD juga menampilkan hitung mundur detik menuju pengiriman berikutnya
+
+    // ── KIRIM KE DASHBOARD (REALTIME) ─────────────────────────
+    sendRealtimeData(v, i, p, f, pf, e);
 
     // ── INISIALISASI ENERGY BASELINE (pertama kali atau setelah reset) ───
     if (!energy_initialized) {
