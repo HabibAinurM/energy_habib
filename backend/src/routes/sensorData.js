@@ -5,19 +5,16 @@ const { authenticate } = require('../middleware/auth');
 const { checkSensorAlerts } = require('../services/alertService');
 const { broadcastSensorUpdate } = require('../services/wsService');
 
-// Cache untuk menyimpan data realtime terbaru tanpa perlu insert ke database
-const realtimeCache = {};
-
 // Helper: update atau create daily aggregation
 async function updateDailyAggregation(sensorData, userId) {
   const dateStr = new Date(sensorData.timestamp).toISOString().slice(0, 10);
   const tarif = await TarifListrik.findOne({ where: { userId, isActive: true } });
   const harga = tarif?.hargaPerKwh ?? 1444.70;
 
-  const rows = await SensorData.findAll({ 
-    where: { 
+  const rows = await SensorData.findAll({
+    where: {
       deviceId: sensorData.deviceId,
-      [Op.and]: literal(`DATE(timestamp) = '${dateStr}'`) 
+      [Op.and]: literal(`DATE(timestamp) = '${dateStr}'`)
     },
     order: [['timestamp', 'ASC']],
   });
@@ -28,21 +25,21 @@ async function updateDailyAggregation(sensorData, userId) {
   // kita cukup menjumlahkan seluruh nilai energi untuk mendapatkan total harian.
   const totalEnergi = rows.reduce((s, r) => s + r.energi, 0);
 
-  const avgTeg  = rows.reduce((s, r) => s + r.tegangan, 0) / rows.length;
+  const avgTeg = rows.reduce((s, r) => s + r.tegangan, 0) / rows.length;
   const avgArus = rows.reduce((s, r) => s + r.arus, 0) / rows.length;
   const avgDaya = rows.reduce((s, r) => s + r.daya, 0) / rows.length;
   const maxDaya = Math.max(...rows.map((r) => r.daya));
 
   await EnergiHarian.upsert({
-    tanggal:     dateStr,
-    userId:      userId,
+    tanggal: dateStr,
+    userId: userId,
     totalEnergi: parseFloat(totalEnergi.toFixed(5)),
-    totalBiaya:  parseFloat((totalEnergi * harga).toFixed(2)),
+    totalBiaya: parseFloat((totalEnergi * harga).toFixed(2)),
     avgTegangan: parseFloat(avgTeg.toFixed(2)),
-    avgArus:     parseFloat(avgArus.toFixed(4)),
-    avgDaya:     parseFloat(avgDaya.toFixed(2)),
-    maxDaya:     parseFloat(maxDaya.toFixed(2)),
-    dataCount:   rows.length,
+    avgArus: parseFloat(avgArus.toFixed(4)),
+    avgDaya: parseFloat(avgDaya.toFixed(2)),
+    maxDaya: parseFloat(maxDaya.toFixed(2)),
+    dataCount: rows.length,
   });
 }
 
@@ -60,14 +57,14 @@ function mapEsp32Fields(body) {
   } = body;
 
   return {
-    tegangan:    parseFloat(voltage  ?? tegangan),
-    arus:        parseFloat(current  ?? arus),
-    daya:        parseFloat(power    ?? daya),
-    energi:      parseFloat(energy   ?? energi),
-    frekuensi:   (frequency ?? frekuensi) != null ? parseFloat(frequency ?? frekuensi) : null,
-    faktorDaya:  (power_factor ?? faktorDaya) != null ? parseFloat(power_factor ?? faktorDaya) : null,
-    deviceId:    device_id    ?? deviceId ?? null,
-    timestamp:   timestamp    ? new Date(timestamp)      : new Date(),
+    tegangan: parseFloat(voltage ?? tegangan),
+    arus: parseFloat(current ?? arus),
+    daya: parseFloat(power ?? daya),
+    energi: parseFloat(energy ?? energi),
+    frekuensi: (frequency ?? frekuensi) != null ? parseFloat(frequency ?? frekuensi) : null,
+    faktorDaya: (power_factor ?? faktorDaya) != null ? parseFloat(power_factor ?? faktorDaya) : null,
+    deviceId: device_id ?? deviceId ?? null,
+    timestamp: timestamp ? new Date(timestamp) : new Date(),
   };
 }
 
@@ -90,7 +87,7 @@ function validateFields({ tegangan, arus, daya, energi }) {
 router.post('/', async (req, res) => {
   try {
     const mapped = mapEsp32Fields(req.body);
-    const err    = validateFields(mapped);
+    const err = validateFields(mapped);
     if (err) return res.status(400).json({ error: err });
 
     if (!mapped.deviceId) return res.status(400).json({ error: 'device_id wajib diisi' });
@@ -103,46 +100,30 @@ router.post('/', async (req, res) => {
       if (!adminUser) return res.status(500).json({ error: 'Tidak ada user terdaftar di sistem.' });
 
       deviceRecord = await Device.create({
-        deviceId:   mapped.deviceId,
-        name:       `Auto: ${mapped.deviceId}`,
+        deviceId: mapped.deviceId,
+        name: `Auto: ${mapped.deviceId}`,
         titikRumah: 'Auto Registered',
-        userId:     adminUser.id,
-        status:     'aktif',
+        userId: adminUser.id,
+        status: 'aktif',
       });
       console.log(`[AutoRegister] Device '${mapped.deviceId}' didaftarkan ke user #${adminUser.id}`);
     }
 
     // Hanya simpan kolom yang ada di model
     const payload = {
-      tegangan:  mapped.tegangan,
-      arus:      mapped.arus,
-      daya:      mapped.daya,
-      energi:    mapped.energi,
-      deviceId:  deviceRecord.id,
+      tegangan: mapped.tegangan,
+      arus: mapped.arus,
+      daya: mapped.daya,
+      energi: mapped.energi,
+      deviceId: deviceRecord.id,
       timestamp: mapped.timestamp,
     };
 
     // Simpan frekuensi & faktor daya jika kolom ada di model (opsional)
     // Aktifkan baris ini setelah menambahkan kolom ke migrasi/model:
-    if (mapped.frekuensi   != null) payload.frekuensi  = mapped.frekuensi;
-    if (mapped.faktorDaya  != null) payload.faktorDaya = mapped.faktorDaya;
+    if (mapped.frekuensi != null) payload.frekuensi = mapped.frekuensi;
+    if (mapped.faktorDaya != null) payload.faktorDaya = mapped.faktorDaya;
 
-    // Jika ini adalah data realtime (tiap 5 detik), jangan simpan ke DB
-    // Cukup update cache dan broadcast via WebSocket
-    if (req.body.interval === 'realtime') {
-      payload.id = Date.now(); // Dummy ID
-      realtimeCache[payload.deviceId] = payload;
-      
-      setImmediate(async () => {
-        try {
-          const tarif = await TarifListrik.findOne({ where: { userId: deviceRecord.userId, isActive: true } });
-          broadcastSensorUpdate(payload, tarif?.hargaPerKwh ?? 1444.70);
-        } catch(e) { console.error(e); }
-      });
-      return res.status(200).json({ message: 'Realtime updated' });
-    }
-
-    // Jika bukan realtime (yaitu 15min), simpan ke database
     const data = await SensorData.create(payload);
 
     // Background tasks (non-blocking)
@@ -158,13 +139,13 @@ router.post('/', async (req, res) => {
     });
 
     return res.status(201).json({
-      id:        data.id,
-      tegangan:  data.tegangan,
-      arus:      data.arus,
-      daya:      data.daya,
-      energi:    data.energi,
+      id: data.id,
+      tegangan: data.tegangan,
+      arus: data.arus,
+      daya: data.daya,
+      energi: data.energi,
       frekuensi: data.frekuensi,
-      faktorDaya:data.faktorDaya,
+      faktorDaya: data.faktorDaya,
       timestamp: data.timestamp,
     });
   } catch (err) {
@@ -177,27 +158,13 @@ router.post('/', async (req, res) => {
 router.get('/realtime', authenticate, async (req, res) => {
   const devices = await Device.findAll({ where: { userId: req.user.id }, attributes: ['id'] });
   const deviceIds = devices.map(d => d.id);
-  
+
   if (!deviceIds.length) return res.status(404).json({ message: 'Belum ada perangkat' });
 
-  // Cari di cache realtime terlebih dahulu agar dashboard cepat
-  let latest = null;
-  for (const id of deviceIds) {
-    if (realtimeCache[id]) {
-      if (!latest || realtimeCache[id].timestamp > latest.timestamp) {
-        latest = realtimeCache[id];
-      }
-    }
-  }
-
-  // Jika belum ada di cache (misal server baru restart), ambil dari database 15-menit terakhir
-  if (!latest) {
-    latest = await SensorData.findOne({ 
-      where: { deviceId: { [Op.in]: deviceIds } },
-      order: [['timestamp', 'DESC']] 
-    });
-  }
-
+  const latest = await SensorData.findOne({
+    where: { deviceId: { [Op.in]: deviceIds } },
+    order: [['timestamp', 'DESC']]
+  });
   if (!latest) return res.status(404).json({ message: 'Belum ada data' });
   return res.json(latest);
 });
@@ -211,8 +178,8 @@ router.get('/history', authenticate, async (req, res) => {
   const deviceIds = devices.map(d => d.id);
 
   let data = await SensorData.findAll({
-    where:      { timestamp: { [Op.gte]: since }, deviceId: { [Op.in]: deviceIds } },
-    order:      [['timestamp', 'ASC']],
+    where: { timestamp: { [Op.gte]: since }, deviceId: { [Op.in]: deviceIds } },
+    order: [['timestamp', 'ASC']],
     attributes: ['id', 'tegangan', 'arus', 'daya', 'energi', 'timestamp', 'deviceId'],
   });
 
@@ -227,8 +194,8 @@ router.get('/history', authenticate, async (req, res) => {
 
 // GET /api/sensor-data/hourly-stats?hours=24
 router.get('/hourly-stats', authenticate, async (req, res) => {
-  const hours    = Math.min(parseInt(req.query.hours) || 24, 720);
-  const since    = new Date(Date.now() - hours * 3600 * 1000);
+  const hours = Math.min(parseInt(req.query.hours) || 24, 720);
+  const since = new Date(Date.now() - hours * 3600 * 1000);
   const sinceStr = since.toISOString().slice(0, 19).replace('T', ' ');
 
   try {

@@ -20,7 +20,7 @@ async function setup() {
 
   // Buat tabel
   console.log('[1/5] Membuat semua tabel...');
-  await sequelize.sync({ force: false });
+  await sequelize.sync({ alter: true });
   console.log('      ✓ Tabel berhasil dibuat\n');
 
   // Admin

@@ -30,6 +30,7 @@ router.post('/login', async (req, res) => {
         username: user.username,
         email:    user.email,
         role:     user.role,
+        telegramChatId: user.telegramChatId,
       },
     });
   } catch (err) {
@@ -65,7 +66,46 @@ router.get('/me', authenticate, (req, res) => {
     username: req.user.username,
     email:    req.user.email,
     role:     req.user.role,
+    telegramChatId: req.user.telegramChatId,
   });
+});
+
+// PUT /api/auth/profile
+router.put('/profile', authenticate, async (req, res) => {
+  try {
+    const { username, email, telegramChatId } = req.body;
+    const user = await User.findByPk(req.user.id);
+    
+    if (username && username !== user.username) {
+      const exists = await User.findOne({ where: { username } });
+      if (exists) return res.status(400).json({ message: 'Username sudah digunakan' });
+    }
+    
+    await user.update({ username, email, telegramChatId });
+    res.json({ message: 'Profil berhasil diperbarui', user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// PUT /api/auth/change-password
+router.put('/change-password', authenticate, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    const user = await User.findByPk(req.user.id);
+    
+    const valid = await user.comparePassword(current_password);
+    if (!valid) return res.status(400).json({ message: 'Password saat ini salah' });
+    
+    user.password = new_password; // akan di-hash oleh hook beforeUpdate
+    await user.save();
+    
+    res.json({ message: 'Password berhasil diubah' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 module.exports = router;

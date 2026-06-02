@@ -325,47 +325,6 @@ void sendAggregatedData(float avg_v, float avg_i, float avg_p,
   }
 }
 
-// ─── FUNGSI KIRIM DATA REALTIME KE SERVER ───────────────────
-void sendRealtimeData(float v, float i, float p, float f, float pf, float e) {
-  if (WiFi.status() != WL_CONNECTED) return;
-
-  bool isHttps = String(g_apiUrl).startsWith("https");
-  HTTPClient http;
-  WiFiClient *client = nullptr;
-
-  if (isHttps) {
-    WiFiClientSecure *secureClient = new WiFiClientSecure;
-    if (secureClient) {
-      secureClient->setInsecure();
-      client = secureClient;
-    }
-  } else {
-    client = new WiFiClient;
-  }
-
-  if (client) {
-    http.begin(*client, g_apiUrl);
-    http.addHeader("Content-Type", "application/json");
-
-    StaticJsonDocument<300> doc;
-    doc["tegangan"]   = v;
-    doc["arus"]       = i;
-    doc["daya"]       = p;
-    doc["energi"]     = e; // Nilai kumulatif asli untuk tampilan saja
-    doc["frekuensi"]  = f;
-    doc["faktorDaya"] = pf;
-    doc["deviceId"]   = g_deviceId;
-    doc["interval"]   = "realtime";  // Flag penanda data realtime (tidak disimpan di DB harian)
-
-    String payload;
-    serializeJson(doc, payload);
-
-    int code = http.POST(payload);
-    http.end();
-    delete client;
-  }
-}
-
 // ================= LOOP =================
 void loop() {
   unsigned long now = millis();
@@ -408,9 +367,6 @@ void loop() {
       (int)((SEND_INTERVAL_MS - (now - lastSendTime)) / 1000)
     );
     // Baris bawah LCD juga menampilkan hitung mundur detik menuju pengiriman berikutnya
-
-    // ── KIRIM KE DASHBOARD (REALTIME) ─────────────────────────
-    sendRealtimeData(v, i, p, f, pf, e);
 
     // ── INISIALISASI ENERGY BASELINE (pertama kali atau setelah reset) ───
     if (!energy_initialized) {

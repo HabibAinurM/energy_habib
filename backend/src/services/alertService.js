@@ -1,5 +1,27 @@
-const { Alert, TarifListrik, EnergiHarian, SystemSettings } = require('../models');
+const { Alert, TarifListrik, EnergiHarian, SystemSettings, User } = require('../models');
 const { Op } = require('sequelize');
+const axios = require('axios');
+
+// Fungsi bantuan untuk mengirim pesan ke Telegram secara dinamis per user
+async function sendTelegramAlert(message, userId) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token || !userId) return; // Skip jika bot token tidak ada
+
+  try {
+    // Ambil telegramChatId dinamis dari database untuk user ini
+    const user = await User.findByPk(userId);
+    if (!user || !user.telegramChatId) return; // Skip jika user belum set Chat ID
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    await axios.post(url, {
+      chat_id: user.telegramChatId,
+      text: `⚠️ *ALERT ENERGI METER*\n\n${message}`,
+      parse_mode: 'Markdown'
+    });
+  } catch (error) {
+    console.error('[Telegram] Gagal mengirim pesan:', error.message);
+  }
+}
 
 // Alert type display names
 const ALERT_LABELS = {
@@ -17,6 +39,10 @@ async function createAlertIfNotRecent(data, userId, minutesCooldown = 30) {
   });
   if (!exists) {
     await Alert.create({ ...data, userId });
+    
+    // Kirim notifikasi ke Telegram (dinamis per user)
+    await sendTelegramAlert(data.message, userId);
+    
     return true;
   }
   return false;
@@ -109,6 +135,9 @@ async function createPredictionSpikeAlert(predictedEnergy, avgEnergy, userId) {
       value: predictedEnergy,
       threshold: avgEnergy * 1.3,
     });
+    
+    // Kirim notifikasi ke Telegram (dinamis per user)
+    await sendTelegramAlert(`Prediksi lonjakan konsumsi ${spikePct.toFixed(1)}% di atas rata-rata (${predictedEnergy.toFixed(3)} vs rata-rata ${avgEnergy.toFixed(3)} kWh)`, userId);
   }
 }
 

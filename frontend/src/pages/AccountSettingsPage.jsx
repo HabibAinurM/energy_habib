@@ -13,6 +13,7 @@ const AccountSettingsPage = () => {
   const [profileForm, setProfileForm] = useState({
     username: user?.username || '',
     email: user?.email || '',
+    telegramChatId: user?.telegramChatId || '',
   });
 
   const [passwordForm, setPasswordForm] = useState({
@@ -139,6 +140,13 @@ const AccountSettingsPage = () => {
             value={profileForm.email}
             onChange={e => setProfileForm({ ...profileForm, email: e.target.value })}
             placeholder="email@contoh.com"
+          />
+          <InputField
+            label="Telegram Chat ID"
+            icon={User}
+            value={profileForm.telegramChatId}
+            onChange={e => setProfileForm({ ...profileForm, telegramChatId: e.target.value })}
+            placeholder="Contoh: 123456789"
           />
           <div className="flex justify-end">
             <button

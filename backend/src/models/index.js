@@ -11,6 +11,7 @@ const User = sequelize.define('User', {
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: { type: DataTypes.STRING(10), defaultValue: 'user' },
   isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
+  telegramChatId: { type: DataTypes.STRING(50), allowNull: true },
 }, {
   tableName: 'users',
   hooks: {
