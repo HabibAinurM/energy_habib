@@ -47,7 +47,7 @@ router.post('/refresh', async (req, res) => {
 
     const decoded = jwt.verify(refresh, SECRET);
     const user = await User.findByPk(decoded.id, {
-      attributes: ['id', 'username', 'email', 'role', 'isActive'],
+      attributes: ['id', 'username', 'email', 'role', 'telegramChatId', 'isActive'],
     });
 
     if (!user || !user.isActive) return res.status(401).json({ error: 'User tidak valid' });

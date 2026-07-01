@@ -11,7 +11,13 @@ try:
     import tensorflow as tf
 except ImportError:
     print(json.dumps({"success": False, "error": "Modul TensorFlow tidak ditemukan. Silakan jalankan 'pip install tensorflow' di server."}))
-    sys.exit(1)
+    sys.exit(0)
+
+try:
+    import sklearn
+except ImportError:
+    print(json.dumps({"success": False, "error": "Modul scikit-learn tidak ditemukan. Silakan jalankan 'pip install scikit-learn' di server."}))
+    sys.exit(0)
 
 def fix_h5_quantization(model_path):
     """
@@ -56,10 +62,10 @@ def main():
         data = json.loads(input_data)
         
         # Ambil parameter dari JSON Node.js
-        scaled_input = data.get('input', [])     # Ekspektasi: Array 2D berukuran (10, 7)
-        horizon = data.get('horizon', 1)         # Berapa langkah ke depan yang mau diprediksi
-        time_step = data.get('time_step', 10)     # Harus 10 sesuai training model LSTM kamu
-        num_features = data.get('num_features', 7) # Harus 7 sesuai jumlah kolom fitur listrik
+        raw_input_list = data.get('input', [])     # Array 2D berukuran (10, 7) mentah
+        horizon = data.get('horizon', 1)         
+        time_step = data.get('time_step', 10)     
+        num_features = data.get('num_features', 7) 
         model_path = data.get('model_path')
         
         # 2. Validasi File Model
@@ -67,9 +73,8 @@ def main():
              print(json.dumps({"success": False, "error": f"Model .h5 tidak ditemukan di {model_path}"}))
              return
              
-        # 3. Validasi Dimensi Input
-        # scaled_input harus berupa matriks 2D (10 baris, 7 kolom)
-        input_np = np.array(scaled_input, dtype=np.float32)
+        # 3. Validasi & Normalisasi Skala Input (WAJIB)
+        input_np = np.array(raw_input_list, dtype=np.float32)
         if input_np.ndim != 2 or input_np.shape != (time_step, num_features):
              print(json.dumps({
                  "success": False, 
@@ -77,35 +82,72 @@ def main():
              }))
              return
 
+        # Load dua scaler terpisah (satu untuk 6 fitur input, satu untuk 1 fitur target)
+        feature_scaler_path = os.path.join(os.path.dirname(model_path), 'scaler_energi_best.pkl')
+        target_scaler_path = os.path.join(os.path.dirname(model_path), 'scaler_target_energi.pkl')
+        
+        if not os.path.exists(feature_scaler_path) or not os.path.exists(target_scaler_path):
+             print(json.dumps({"success": False, "error": "Salah satu file scaler tidak ditemukan di folder ml_model."}))
+             return
+
+        try:
+            import joblib
+            feature_scaler = joblib.load(feature_scaler_path)
+            target_scaler = joblib.load(target_scaler_path)
+        except Exception as e_joblib:
+            try:
+                import pickle
+                with open(feature_scaler_path, 'rb') as f1, open(target_scaler_path, 'rb') as f2:
+                    feature_scaler = pickle.load(f1)
+                    target_scaler = pickle.load(f2)
+            except Exception as e_pickle:
+                 print(json.dumps({"success": False, "error": f"Gagal meload scaler. Error: {str(e_pickle)}"}))
+                 return
+
+        # Lakukan normalisasi (transform) data mentah sebelum masuk model menggunakan FEATURE SCALER
+        try:
+            scaled_input_np = feature_scaler.transform(input_np)
+        except Exception as e:
+            print(json.dumps({"success": False, "error": f"Gagal menormalisasi data: {str(e)}"}))
+            return
+
         # Fix Keras 3 ke Keras 2 compatibility
         fix_h5_quantization(model_path)
 
         # Load model tanpa kompilasi (hanya untuk forward pass/prediksi)
         model = tf.keras.models.load_model(model_path, compile=False)
 
-        current_input = input_np.copy()
-        future_preds = []
+        current_input = scaled_input_np.copy()
+        future_preds_scaled = []
 
-        # 4. Loop Prediksi (Autoregressive)
+        # 4. Loop Prediksi (Autoregressive) menggunakan skala 0-1
+        # [OPTIMASI KINERJA] Kita konversi ke Tensor sekali saja agar loop lebih ringan
+        current_input_tf = tf.convert_to_tensor(current_input.reshape(1, time_step, num_features), dtype=tf.float32)
+
         for _ in range(horizon):
-            # Reshape ke 3D sesuai kebutuhan LSTM: [Batch=1, Time_Steps=10, Features=7]
-            inp = current_input.reshape(1, time_step, num_features)
+            # Prediksi menggunakan direct call (jauh lebih cepat daripada model.predict di dalam loop)
+            pred_tensor = model(current_input_tf, training=False)
+            pred_scaled = float(pred_tensor[0][0])
+            future_preds_scaled.append(pred_scaled)
             
-            # Prediksi menghasilkan nilai tunggal (target daya/power)
-            pred = model.predict(inp, verbose=0)[0][0]
-            future_preds.append(float(pred))
-            
-            # --- Pergeseran Window ke Depan untuk Multistep ---
-            # Karena model kita multi-fitur (7 kolom) tapi kita cuma memprediksi 1 nilai baru (index 2 = daya),
-            # kita asumsikan fitur lainnya (tegangan, arus, pf) konstan menggunakan data terakhir.
-            next_row = current_input[-1].copy() 
-            next_row[2] = pred  # Timpa index ke-2 (fitur daya) dengan hasil prediksi baris baru
-            
-            # Buang baris terlama (paling atas), masukkan baris baru (paling bawah)
+            # Geser window (Buang indeks ke-0, tambahkan tebakan baru di akhir)
+            next_row = current_input[-1].copy()
+            next_row[2] = pred_scaled
             current_input = np.vstack([current_input[1:], next_row])
+            
+            # Update tensor untuk iterasi berikutnya
+            current_input_tf = tf.convert_to_tensor(current_input.reshape(1, time_step, num_features), dtype=tf.float32)
+
+        # Kembalikan skala (Inverse Transform) ke satuan asli (Watt) menggunakan TARGET SCALER
+        preds_2d = np.array(future_preds_scaled).reshape(-1, 1)
+        unscaled_array = target_scaler.inverse_transform(preds_2d)
+        
+        # Ambil kolom daya yang sudah kembali ke Watt
+        # Dan pastikan hasilnya tidak kurang dari 0 (karena daya listrik tidak bisa minus)
+        future_preds_real = [max(0.0, float(val[0])) for val in unscaled_array]
 
         # Output JSON ke stdout untuk ditangkap oleh Node.js
-        print(json.dumps({"success": True, "forecasts": future_preds}))
+        print(json.dumps({"success": True, "forecasts": future_preds_real}))
         
     except Exception as e:
         print(json.dumps({"success": False, "error": str(e)}))

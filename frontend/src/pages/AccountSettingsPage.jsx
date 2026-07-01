@@ -7,8 +7,28 @@ import {
   Shield, CheckCircle
 } from 'lucide-react';
 
+/* ── ui helpers ── */
+const InputField = ({ label, icon: Icon, type = 'text', value, onChange, placeholder, rightEl }) => (
+  <div>
+    <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
+    <div className="relative">
+      <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+      <input
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 text-sm transition-colors"
+      />
+      {rightEl && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightEl}</div>
+      )}
+    </div>
+  </div>
+);
+
 const AccountSettingsPage = () => {
-  const { user, login } = useAuth();
+  const { user, login, updateUser } = useAuth();
 
   const [profileForm, setProfileForm] = useState({
     username: user?.username || '',
@@ -32,7 +52,8 @@ const AccountSettingsPage = () => {
     e.preventDefault();
     setSavingProfile(true);
     try {
-      await api.put('/auth/profile', profileForm);
+      const res = await api.put('/auth/profile', profileForm);
+      if (res.data && res.data.user) updateUser(res.data.user);
       toast.success('Profil berhasil diperbarui');
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Gagal memperbarui profil');
@@ -67,24 +88,6 @@ const AccountSettingsPage = () => {
   };
 
   /* ── ui helpers ── */
-  const InputField = ({ label, icon: Icon, type = 'text', value, onChange, placeholder, rightEl }) => (
-    <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">{label}</label>
-      <div className="relative">
-        <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-        <input
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl pl-10 pr-10 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 text-sm transition-colors"
-        />
-        {rightEl && (
-          <div className="absolute right-3 top-1/2 -translate-y-1/2">{rightEl}</div>
-        )}
-      </div>
-    </div>
-  );
 
   const strengthScore = (pw) => {
     if (!pw) return 0;

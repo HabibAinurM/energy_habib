@@ -1,6 +1,7 @@
 const { Alert, TarifListrik, EnergiHarian, SystemSettings, User } = require('../models');
 const { Op } = require('sequelize');
 const axios = require('axios');
+const { getLocalYMD } = require('../utils/date');
 
 // Fungsi bantuan untuk mengirim pesan ke Telegram secara dinamis per user
 async function sendTelegramAlert(message, userId) {
@@ -93,7 +94,7 @@ async function checkCostLimit(settings, userId) {
   if (!tarif?.batasBiayaBulanan) return;
 
   const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+  const monthStart = `${getLocalYMD(now).slice(0, 7)}-01`;
 
   const rows = await EnergiHarian.findAll({
     where: { userId, tanggal: { [Op.gte]: monthStart } },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { userAPI, settingsAPI } from '../services/api';
 import { toast } from 'react-toastify';
-import { Users, Plus, Shield, User, Settings } from 'lucide-react';
+import { Users, Plus, Shield, User, Settings, Edit2, Trash2 } from 'lucide-react';
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
@@ -9,8 +9,9 @@ const UsersPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user' });
+  const [form, setForm] = useState({ username: '', email: '', password: '', role: 'user', isActive: true });
   const [settingsForm, setSettingsForm] = useState({});
+  const [editingUserId, setEditingUserId] = useState(null);
 
   const loadData = async () => {
     try {
@@ -27,15 +28,49 @@ const UsersPage = () => {
 
   useEffect(() => { loadData(); }, []);
 
-  const handleCreateUser = async (e) => {
+  const handleSubmitUser = async (e) => {
     e.preventDefault();
     try {
-      await userAPI.create(form);
-      toast.success('User berhasil dibuat');
+      const payload = { ...form };
+      if (!payload.password) delete payload.password; // Don't send empty password
+
+      if (editingUserId) {
+        await userAPI.update(editingUserId, payload);
+        toast.success('User berhasil diupdate');
+      } else {
+        await userAPI.create(payload);
+        toast.success('User berhasil dibuat');
+      }
       setShowForm(false);
-      setForm({ username: '', email: '', password: '', role: 'user' });
+      setEditingUserId(null);
+      setForm({ username: '', email: '', password: '', role: 'user', isActive: true });
       loadData();
-    } catch { toast.error('Gagal membuat user'); }
+    } catch (err) { 
+      toast.error(err.response?.data?.error || (editingUserId ? 'Gagal mengupdate user' : 'Gagal membuat user')); 
+    }
+  };
+
+  const handleEditClick = (user) => {
+    setForm({ username: user.username, email: user.email || '', password: '', role: user.role, isActive: user.isActive !== false });
+    setEditingUserId(user.id);
+    setShowForm(true);
+  };
+
+  const handleDeleteUser = async (id) => {
+    if (!window.confirm('Yakin ingin menghapus user ini?')) return;
+    try {
+      await userAPI.delete(id);
+      toast.success('User berhasil dihapus');
+      loadData();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Gagal menghapus user');
+    }
+  };
+
+  const handleCancelForm = () => {
+    setShowForm(false);
+    setEditingUserId(null);
+    setForm({ username: '', email: '', password: '', role: 'user', isActive: true });
   };
 
   const handleSaveSettings = async (e) => {
@@ -64,7 +99,10 @@ const UsersPage = () => {
             Pengaturan Alert
           </button>
           <button
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              setShowForm(!showForm);
+              if (showForm) handleCancelForm();
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-medium text-sm transition-all"
           >
             <Plus className="w-4 h-4" />
@@ -129,15 +167,15 @@ const UsersPage = () => {
         </div>
       )}
 
-      {/* Add User Form */}
+      {/* Add/Edit User Form */}
       {showForm && (
         <div className="bg-slate-900/60 border border-blue-500/30 rounded-2xl p-6">
-          <h3 className="text-white font-semibold mb-5">Tambah User Baru</h3>
-          <form onSubmit={handleCreateUser} className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <h3 className="text-white font-semibold mb-5">{editingUserId ? 'Edit User' : 'Tambah User Baru'}</h3>
+          <form onSubmit={handleSubmitUser} className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { key: 'username', label: 'Username', type: 'text' },
               { key: 'email', label: 'Email', type: 'email' },
-              { key: 'password', label: 'Password', type: 'password' },
+              { key: 'password', label: editingUserId ? 'Password Baru (Opsional)' : 'Password', type: 'password' },
             ].map(f => (
               <div key={f.key}>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5">{f.label}</label>
@@ -146,7 +184,7 @@ const UsersPage = () => {
                   value={form[f.key]}
                   onChange={e => setForm({ ...form, [f.key]: e.target.value })}
                   className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 text-sm"
-                  required={f.key !== 'email'}
+                  required={f.key === 'username' || (f.key === 'password' && !editingUserId)}
                 />
               </div>
             ))}
@@ -161,9 +199,20 @@ const UsersPage = () => {
                 <option value="admin">Admin</option>
               </select>
             </div>
-            <div className="col-span-2 md:col-span-4 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Batal</button>
-              <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium">Buat User</button>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">Status</label>
+              <select
+                value={form.isActive}
+                onChange={e => setForm({ ...form, isActive: e.target.value === 'true' })}
+                className="w-full bg-slate-800/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 text-sm"
+              >
+                <option value="true">Aktif</option>
+                <option value="false">Nonaktif</option>
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-4 flex justify-end gap-3 mt-2">
+              <button type="button" onClick={handleCancelForm} className="px-4 py-2 text-slate-400 hover:text-white text-sm">Batal</button>
+              <button type="submit" className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium">{editingUserId ? 'Simpan Perubahan' : 'Buat User'}</button>
             </div>
           </form>
         </div>
@@ -199,6 +248,19 @@ const UsersPage = () => {
                 }`}>
                   {user.role}
                 </span>
+                <span className={`px-3 py-1 rounded-lg text-xs font-semibold capitalize ${
+                  user.isActive !== false ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'
+                }`}>
+                  {user.isActive !== false ? 'Aktif' : 'Nonaktif'}
+                </span>
+                <div className="flex items-center gap-1 ml-2">
+                  <button onClick={() => handleEditClick(user)} className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors" title="Edit User">
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Hapus User">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>

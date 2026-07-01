@@ -1,11 +1,7 @@
-/**
- * Prediction Service (LSTM via Python Bridge)
- * Menggunakan model Deep Learning LSTM berformat .h5 hasil dari Google Colab.
- */
-
 const { SensorData, Device, PrediksiEnergi, TarifListrik } = require('../models');
 const { Op } = require('sequelize');
 const { createPredictionSpikeAlert } = require('./alertService');
+const { getLocalYMD } = require('../utils/date');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -13,7 +9,7 @@ const { spawn } = require('child_process');
 function runPythonPrediction(rawInputMatrix, horizon, timeStep, numFeatures) {
   return new Promise((resolve, reject) => {
     const pythonScript = path.join(__dirname, '..', 'scripts', 'predict.py');
-    const modelPath = path.join(__dirname, '..', 'ml_model', 'model_lstm_energi (1).h5'); // Sesuaikan nama file model kamu
+    const modelPath = path.join(__dirname, '..', 'ml_model', 'model_energi (1).h5'); // Sesuaikan nama file model kamu
 
     // Gunakan 'python' di Windows, 'python3' di Linux/Mac
     const pythonCmd = /^win/.test(process.platform) ? 'python' : 'python3';
@@ -35,7 +31,11 @@ function runPythonPrediction(rawInputMatrix, horizon, timeStep, numFeatures) {
         return reject(new Error('Python script exited with code ' + code + ': ' + errorData));
       }
       try {
-        const result = JSON.parse(outputData);
+        // Ekstrak JSON menggunakan regex untuk mengabaikan warning dari TensorFlow
+        const jsonMatch = outputData.match(/{[\s\S]*}/);
+        if (!jsonMatch) throw new Error('No JSON output found from Python script');
+
+        const result = JSON.parse(jsonMatch[0]);
         if (!result.success) {
           return reject(new Error(result.error));
         }
@@ -99,13 +99,12 @@ async function generatePredictions(userId) {
     // Urutkan data dari yang terlama ke terbaru (ASC) agar runut waktu
     historical.reverse();
 
-    // Mapping records database menjadi array di dalam array (Matriks 2D: 10 x 7)
-    // Urutan fitur saat training: [tegangan, arus, daya_avg, daya_max, energi, frek, pf]
+    // Mapping records database menjadi array di dalam array (Matriks 2D: 10 x 6)
+    // Urutan fitur baru (6 fitur): [tegangan, arus, daya, energi, frek, pf]
     const rawInputMatrix = historical.map(d => [
       parseFloat(d.tegangan || 0),
       parseFloat(d.arus || 0),
       parseFloat(d.daya || 0),
-      parseFloat(d.daya || 0),     // Menggunakan daya karena tabel tidak memiliki kolom max_daya
       parseFloat(d.energi || 0),
       parseFloat(d.frekuensi || 0),
       parseFloat(d.faktorDaya || 0)
@@ -113,44 +112,45 @@ async function generatePredictions(userId) {
 
     // Ambil rata-rata daya saat ini untuk dijadikan base pembanding historis harian
     const avgDayaSaatIni = rawInputMatrix.reduce((sum, row) => sum + row[2], 0) / TIME_STEP;
-    const estimasiKwhNormalHarian = avgDayaSaatIni * 24; // (Rata-rata Watt * 24 Jam) / 1000 jika satuannya watt mentah
+    // PERBAIKAN: Dibagi 1000 agar menjadi kWh
+    const estimasiKwhNormalHarian = (avgDayaSaatIni * 24) / 1000;
 
     // Ambil data tarif dasar listrik user
     const tarif = await TarifListrik.findOne({ where: { userId, isActive: true } });
     const harga = tarif?.hargaPerKwh ?? 1444.70;
 
     // Panggil skrip Python (Proses normalisasi & reshape ditangani oleh predict.py)
-    const NUM_FEATURES = 7;
+    const NUM_FEATURES = 6;
     const forecasts = await runPythonPrediction(rawInputMatrix, HORIZON, TIME_STEP, NUM_FEATURES);
 
     // 3. Simpan Hasil Prediksi ke Database
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = getLocalYMD(today);
 
     // Hapus data prediksi hari ini dan hari-hari setelahnya yang usang sebelum menulis yang baru
     await PrediksiEnergi.destroy({ where: { userId, tanggalPrediksi: { [Op.gte]: todayStr } } });
 
     const predictions = [];
-    let maxPred = 0;
+    let maxPredKwh = 0; // Menggunakan variabel untuk menyimpan Prediksi kWh Tertinggi
 
     // --- LOOP UNTUK MENYIMPAN PREDIKSI PER HARI ---
     for (let i = 0; i < HARI_KEDEPAN; i++) {
       // Ambil potongan interval (96 data) khusus untuk hari ke-i
       const dailyForecasts = forecasts.slice(i * INTERVAL_PER_HARI, (i + 1) * INTERVAL_PER_HARI);
 
-      // Akumulasi total prediksi energi hari tersebut
-      const totalPrediksiEnergi = dailyForecasts.reduce((a, b) => a + b, 0);
+      // RUMUS BENAR: (Total Watt * 0.25 Jam) / 1000 = Total kWh. Disederhanakan menjadi dibagi 4000.
+      const totalPrediksiEnergi = dailyForecasts.reduce((a, b) => a + b, 0) / 4000;
       const biaya = totalPrediksiEnergi * harga;
 
       // ─── PERBAIKAN LOGIKA CONFIDENCE INTERVAL (Batas Bawah & Atas) ───
       // Menggunakan 10% dari total ramalan hari itu agar proporsional dan tidak menghasilkan angka 0 terus menerus
-      const deviasiHarian = totalPrediksiEnergi * 0.10; 
+      const deviasiHarian = totalPrediksiEnergi * 0.10;
 
       // Format tanggal (Hari ini + i + 1)
       const forecastDate = new Date();
       forecastDate.setDate(forecastDate.getDate() + (i + 1));
-      const tglString = forecastDate.toISOString().slice(0, 10);
+      const tglString = getLocalYMD(forecastDate);
 
       // ─── LOGIKA REKOMENDASI TINDAKAN CERDAS (LOGIC BRIDGE) ───
       let rekomendasiTindakan = "Penggunaan listrik diprediksi stabil dan aman. Pertahankan pola penggunaan perangkat elektronik Anda.";
@@ -160,7 +160,7 @@ async function generatePredictions(userId) {
       if (totalPrediksiEnergi > estimasiKwhNormalHarian * 1.2) {
         statusSistem = "BAHAYA_BOROS";
         rekomendasiTindakan = `Peringatan! Prediksi konsumsi listrik pada ${tglString} melonjak cukup tinggi. Disarankan untuk membatasi pemakaian peralatan elektronik berdaya besar seperti AC, pemanas air, atau mesin cuci pada jam-jam sibuk.`;
-      } 
+      }
       // Jika estimasi pengeluaran biaya per hari dirasa sudah melewati ambang batas tertentu (misal Rp 30.000)
       else if (biaya > 30000) {
         statusSistem = "PERINGATAN_BIAYA";
@@ -176,10 +176,6 @@ async function generatePredictions(userId) {
         confidenceLower: parseFloat(Math.max(0, totalPrediksiEnergi - deviasiHarian).toFixed(4)),
         confidenceUpper: parseFloat((totalPrediksiEnergi + deviasiHarian).toFixed(4)),
         generatedAt: new Date(),
-        // Catatan: Jika tabel PrediksiEnergi kamu sudah memiliki kolom 'rekomendasi' dan 'status', 
-        // kamu bisa membuka komentar di bawah ini untuk menyimpannya ke database:
-        // rekomendasi: rekomendasiTindakan,
-        // status: statusSistem
       });
 
       predictions.push({
@@ -190,13 +186,14 @@ async function generatePredictions(userId) {
         rekomendasi: rekomendasiTindakan
       });
 
-      // Ambil nilai tertinggi dari hasil ramalan untuk memicu alert jika terjadi lonjakan mendadak
-      const localMax = Math.max(...dailyForecasts);
-      if (localMax > maxPred) maxPred = localMax;
+      // Simpan nilai Prediksi Energi Harian tertinggi untuk Notifikasi/Alert
+      if (totalPrediksiEnergi > maxPredKwh) {
+        maxPredKwh = totalPrediksiEnergi;
+      }
     }
 
-    // Check for spike alert
-    await createPredictionSpikeAlert(maxPred, avgDayaSaatIni * 2, userId);
+    // Check for spike alert: Bandingkan prediksi kWh harian tertinggi dengan rata-rata kWh saat ini
+    await createPredictionSpikeAlert(maxPredKwh, estimasiKwhNormalHarian, userId);
 
     return { success: true, predictions, method: 'Deep Learning (LSTM .h5 Python Bridge)' };
   } catch (err) {

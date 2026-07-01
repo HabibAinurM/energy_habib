@@ -4,10 +4,11 @@ const { SensorData, EnergiHarian, TarifListrik, Device, User } = require('../mod
 const { authenticate } = require('../middleware/auth');
 const { checkSensorAlerts } = require('../services/alertService');
 const { broadcastSensorUpdate } = require('../services/wsService');
+const { getLocalYMD } = require('../utils/date');
 
 // Helper: update atau create daily aggregation
 async function updateDailyAggregation(sensorData, userId) {
-  const dateStr = new Date(sensorData.timestamp).toISOString().slice(0, 10);
+  const dateStr = getLocalYMD(sensorData.timestamp);
   const tarif = await TarifListrik.findOne({ where: { userId, isActive: true } });
   const harga = tarif?.hargaPerKwh ?? 1444.70;
 
@@ -83,7 +84,7 @@ function validateFields({ tegangan, arus, daya, energi }) {
   return null;
 }
 
-// ─── POST /api/sensor-data ─── dipakai ESP32 (tanpa auth) ───
+// ─── POST /api/sensor-data  ───
 router.post('/', async (req, res) => {
   try {
     const mapped = mapEsp32Fields(req.body);
@@ -130,7 +131,7 @@ router.post('/', async (req, res) => {
     setImmediate(async () => {
       try {
         await updateDailyAggregation(data, deviceRecord.userId);
-        await checkSensorAlerts(data); // TODO: checkSensorAlerts needs to be user-aware
+        await checkSensorAlerts(data, deviceRecord.userId);
         const tarif = await TarifListrik.findOne({ where: { userId: deviceRecord.userId, isActive: true } });
         broadcastSensorUpdate(data, tarif?.hargaPerKwh ?? 1444.70); // TODO: broadcast only to specific user room
       } catch (e) {
@@ -138,7 +139,7 @@ router.post('/', async (req, res) => {
       }
     });
 
-    return res.status(201).json({
+    const responsePayload = {
       id: data.id,
       tegangan: data.tegangan,
       arus: data.arus,
@@ -147,7 +148,26 @@ router.post('/', async (req, res) => {
       frekuensi: data.frekuensi,
       faktorDaya: data.faktorDaya,
       timestamp: data.timestamp,
-    });
+    };
+
+    // Check if there is pending WiFi configuration
+    if (deviceRecord.targetWifiSsid) {
+      responsePayload.wifi_config = {
+        ssid: deviceRecord.targetWifiSsid,
+        password: deviceRecord.targetWifiPassword,
+      };
+
+      // Clear the target WiFi configuration so it's only sent once
+      setImmediate(async () => {
+        try {
+          await deviceRecord.update({ targetWifiSsid: null, targetWifiPassword: null });
+        } catch (e) {
+          console.error('[WiFi Config Clear Error]', e.message);
+        }
+      });
+    }
+
+    return res.status(201).json(responsePayload);
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Server error' });
@@ -206,14 +226,14 @@ router.get('/hourly-stats', authenticate, async (req, res) => {
     const sequelize = require('../config/database');
     const stats = await sequelize.query(`
       SELECT
-        DATE_FORMAT(timestamp, '%Y-%m-%dT%H:00:00') AS hour,
+        DATE_FORMAT(timestamp, '%Y-%m-%dT%H:00:00Z') AS hour,
         AVG(tegangan) AS avg_tegangan,
         AVG(arus)     AS avg_arus,
         AVG(daya)     AS avg_daya,
         SUM(energi)   AS total_energi
       FROM sensor_data
       WHERE timestamp >= '${sinceStr}' AND deviceId IN (${deviceIds.join(',')})
-      GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%dT%H:00:00')
+      GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%dT%H:00:00Z')
       ORDER BY hour ASC
     `, { type: sequelize.QueryTypes.SELECT });
 
@@ -221,6 +241,71 @@ router.get('/hourly-stats', authenticate, async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: 'Query error' });
+  }
+});
+
+// GET /api/sensor-data/test-telegram (TEMPORARY ROUTE UNTUK TESTING)
+router.get('/test-telegram', async (req, res) => {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return res.status(500).json({ error: 'TELEGRAM_BOT_TOKEN tidak ditemukan di env' });
+
+  try {
+    const adminUser = await User.findOne({ order: [['id', 'ASC']] });
+    if (!adminUser || !adminUser.telegramChatId) {
+      return res.status(404).json({ error: 'User admin tidak ditemukan atau belum punya telegramChatId' });
+    }
+
+    const axios = require('axios');
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    const response = await axios.post(url, {
+      chat_id: adminUser.telegramChatId,
+      text: '🤖 *TES DARI ENDPOINT API*\n\nBerhasil mengirim dari dalam Docker!',
+      parse_mode: 'Markdown'
+    });
+
+    return res.json({ success: true, message: 'Pesan terkirim ke ' + adminUser.username, telegramResponse: response.data.result.text });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Gagal mengirim', detail: error.message });
+  }
+});
+
+// GET /api/sensor-data/test-simulate-alert (TEMPORARY ROUTE UNTUK TESTING ALERT)
+router.get('/test-simulate-alert', async (req, res) => {
+  try {
+    const adminUser = await User.findOne({ order: [['id', 'ASC']] });
+    if (!adminUser) return res.status(404).json({ error: 'Tidak ada user' });
+
+    const testData = {
+      alertType: 'voltage_high',
+      severity: 'critical',
+      message: `[SIMULASI] Tegangan sangat tinggi: 265V (batas maksimum: 250V). Bahaya kerusakan alat!`,
+      value: 265,
+      threshold: 250,
+    };
+
+    // Panggil fungsi pembuat alert secara langsung
+    const { Alert } = require('../models');
+    const { getLocalYMD } = require('../utils/date');
+    const { Op } = require('sequelize');
+    
+    // Abaikan sistem cooldown 30 menit khusus untuk test ini agar selalu terkirim
+    await Alert.create({ ...testData, userId: adminUser.id });
+    
+    const axios = require('axios');
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (token && adminUser.telegramChatId) {
+      await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+        chat_id: adminUser.telegramChatId,
+        text: `⚠️ *ALERT ENERGI METER*\n\n${testData.message}`,
+        parse_mode: 'Markdown'
+      });
+    }
+
+    return res.json({ success: true, message: 'Simulasi Peringatan Tegangan Tinggi Berhasil Dipicu!' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Gagal menjalankan simulasi' });
   }
 });
 

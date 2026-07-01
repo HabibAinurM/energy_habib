@@ -347,17 +347,17 @@ const DashboardPage = () => {
           <InfoGrid items={[
             {
               label:   'Daya Puncak Hari Ini',
-              value:   `${(d.max_daya_hari_ini ?? 0).toFixed(0)} W`,
+              value:   `${Number(d.max_daya_hari_ini ?? 0).toFixed(0)} W`,
               subtext: 'dari EnergiHarian.maxDaya',
             },
             {
               label:   'Rata-rata Tegangan',
-              value:   `${(d.avg_tegangan_hari_ini ?? 0).toFixed(1)} V`,
+              value:   `${Number(d.avg_tegangan_hari_ini ?? 0).toFixed(1)} V`,
               subtext: 'dari EnergiHarian.avgTegangan',
             },
             {
               label:   'Rata-rata Arus',
-              value:   `${(d.avg_arus_hari_ini ?? 0).toFixed(2)} A`,
+              value:   `${Number(d.avg_arus_hari_ini ?? 0).toFixed(2)} A`,
               subtext: 'dari EnergiHarian.avgArus',
             },
             {

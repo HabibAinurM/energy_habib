@@ -93,19 +93,10 @@ body {
 
 /* HEADER */
 .header {
-  padding: 30px 20px;
+  padding: 30px 20px 10px;
 }
-
-.header h1 {
-  margin: 0;
-  font-size: 24px;
-}
-
-.header p {
-  margin: 5px 0;
-  font-size: 14px;
-  color: #ccc;
-}
+.header h1 { margin: 0; font-size: 24px; }
+.header p { margin: 5px 0; font-size: 14px; color: #ccc; }
 
 /* CARD */
 .card {
@@ -117,50 +108,63 @@ body {
   box-shadow: 0 10px 25px rgba(0,0,0,0.3);
 }
 
-/* INPUT */
-input {
+/* INPUT & SELECT */
+select, input[type="text"], input[type="password"], input[type="number"] {
   width: 90%;
   padding: 12px;
-  margin: 8px;
+  margin: 8px auto;
   border-radius: 10px;
   border: none;
   outline: none;
+  display: block;
+  font-size: 16px;
+  text-align: center;
+  font-family: inherit;
+}
+select {
+  cursor: pointer;
+  background: white;
+  color: #333;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 /* BUTTON */
-button {
+button, input[type="submit"], input[type="button"] {
   width: 90%;
   padding: 12px;
   border-radius: 10px;
   border: none;
-  margin-top: 10px;
+  margin-top: 15px;
+  margin-left: auto;
+  margin-right: auto;
   font-size: 16px;
   background: linear-gradient(45deg,#00c6ff,#0072ff);
   color: white;
   cursor: pointer;
   transition: 0.3s;
+  display: block;
+  font-weight: bold;
 }
-
-button:hover {
+button:hover, input[type="submit"]:hover, input[type="button"]:hover {
   transform: scale(1.03);
+  box-shadow: 0 5px 15px rgba(0,198,255,0.4);
 }
 
 /* FOOTER */
 .footer {
-  margin-top: 20px;
-  font-size: 12px;
-  color: #aaa;
+  margin-top: 20px; margin-bottom: 20px; font-size: 12px; color: #aaa;
 }
 
 /* ANIMATION */
-.fade {
-  animation: fadeIn 1.2s ease;
-}
-
+.fade { animation: fadeIn 1.2s ease; }
 @keyframes fadeIn {
   from {opacity: 0; transform: translateY(10px);}
   to {opacity: 1; transform: translateY(0);}
 }
+
+/* Tweak WiFiManager original links to hide them nicely */
+div.l { margin-bottom: 5px; }
 </style>
 
 <div class="header fade">
@@ -170,8 +174,62 @@ button:hover {
 
 <div class="card fade">
   <h3>🔧 Setup WiFi & Server</h3>
-  <p>Silakan hubungkan perangkat ke WiFi dan masukkan konfigurasi server.</p>
+  <p>Pilih nama WiFi Anda dari pilihan di bawah ini, lalu masukkan Password dan Konfigurasi Server.</p>
 </div>
+
+<script>
+window.addEventListener('load', function() {
+  var ssidInput = document.getElementById('ssid');
+  if (ssidInput) {
+    // Cari semua link WiFi bawaan WiFiManager
+    var links = document.querySelectorAll('.l a[href="#p"], a[href="#p"]');
+    
+    var select = document.createElement('select');
+    select.id = 'wifi-select';
+    
+    var optDef = document.createElement('option');
+    optDef.value = '';
+    optDef.innerHTML = '🔍 -- Pilih WiFi yang Tersedia --';
+    select.appendChild(optDef);
+
+    links.forEach(function(link) {
+      var opt = document.createElement('option');
+      opt.value = link.innerText || link.textContent;
+      opt.innerHTML = '📶 ' + (link.innerText || link.textContent);
+      select.appendChild(opt);
+      
+      // Sembunyikan elemen bawaan WiFiManager
+      if (link.parentNode && link.parentNode.tagName === 'DIV') {
+         link.parentNode.style.display = 'none';
+      } else {
+         link.style.display = 'none';
+      }
+    });
+
+    var optOther = document.createElement('option');
+    optOther.value = '__OTHER__';
+    optOther.innerHTML = '➕ Ketik Manual (Hidden WiFi)';
+    select.appendChild(optOther);
+
+    select.onchange = function() {
+      if (this.value === '__OTHER__') {
+        ssidInput.style.display = 'block';
+        ssidInput.value = '';
+        ssidInput.placeholder = 'Ketik Nama WiFi Manual';
+      } else {
+        ssidInput.style.display = 'none';
+        ssidInput.value = this.value;
+      }
+    };
+
+    // Sisipkan dropdown sebelum kolom SSID
+    ssidInput.parentNode.insertBefore(select, ssidInput);
+    
+    // Secara default, sembunyikan kolom input text SSID
+    ssidInput.style.display = 'none';
+  }
+});
+</script>
 
 <div class="footer fade">
   © 2026 Habib IoT System

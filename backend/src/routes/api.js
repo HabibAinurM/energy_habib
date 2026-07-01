@@ -6,6 +6,7 @@ const {
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { generatePredictions } = require('../services/predictionService');
 const { ALERT_LABELS } = require('../services/alertService');
+const { getLocalYMD } = require('../utils/date');
 
 // ════════════════════════════════════════════════════════════
 //  TARIF LISTRIK
@@ -116,7 +117,7 @@ router.get('/energi-harian/range', authenticate, async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 365);
   const since = new Date();
   since.setDate(since.getDate() - days);
-  const sinceStr = since.toISOString().slice(0, 10);
+  const sinceStr = getLocalYMD(since);
   const data = await EnergiHarian.findAll({
     where: { userId: req.user.id, tanggal: { [Op.gte]: sinceStr } },
     order: [['tanggal', 'ASC']],
@@ -130,7 +131,7 @@ router.get('/energi-harian/range', authenticate, async (req, res) => {
 
 // GET /api/prediksi/latest
 router.get('/prediksi/latest', authenticate, async (req, res) => {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalYMD(new Date());
   const preds = await PrediksiEnergi.findAll({
     where: { userId: req.user.id, tanggalPrediksi: { [Op.gte]: todayStr } },
     order: [['tanggalPrediksi', 'ASC']],
@@ -154,8 +155,8 @@ router.get('/prediksi/comparison', authenticate, async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 180);
   const since = new Date();
   since.setDate(since.getDate() - days);
-  const sinceStr = since.toISOString().slice(0, 10);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const sinceStr = getLocalYMD(since);
+  const todayStr = getLocalYMD(new Date());
 
   const [actual, predictions] = await Promise.all([
     EnergiHarian.findAll({
@@ -218,6 +219,52 @@ router.post('/users', authenticate, requireAdmin, async (req, res) => {
   }
 });
 
+// PUT /api/users/:id (admin only)
+router.put('/users/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { username, email, password, role, isActive } = req.body;
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
+
+    if (username && username !== user.username) {
+      const exists = await User.findOne({ where: { username } });
+      if (exists) return res.status(400).json({ error: 'Username sudah digunakan' });
+    }
+
+    user.username = username || user.username;
+    user.email = email !== undefined ? email : user.email;
+    if (password) user.password = password; // Akan di-hash oleh hook beforeUpdate/beforeSave
+    user.role = role || user.role;
+    if (isActive !== undefined) user.isActive = isActive;
+
+    await user.save();
+
+    res.json({ id: user.id, username: user.username, email: user.email, role: user.role, isActive: user.isActive });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/users/:id (admin only)
+router.delete('/users/:id', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User tidak ditemukan' });
+
+    // Prevent admin from deleting themselves
+    if (user.id === req.user.id) {
+      return res.status(400).json({ error: 'Tidak dapat menghapus akun sendiri' });
+    }
+
+    await user.destroy();
+    res.json({ message: 'User berhasil dihapus' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ════════════════════════════════════════════════════════════
 //  GENERATE SAMPLE DATA (dev only)
 // ════════════════════════════════════════════════════════════
@@ -267,7 +314,7 @@ router.get('/generate-sample-data', authenticate, async (req, res) => {
     await SensorData.bulkCreate(records, { ignoreDuplicates: true });
 
     // Rebuild daily aggregations
-    const dateSet = [...new Set(records.map((r) => r.timestamp.toISOString().slice(0, 10)))];
+    const dateSet = [...new Set(records.map((r) => getLocalYMD(r.timestamp)))];
     const sequelize = require('../config/database');
 
     for (const dateStr of dateSet) {

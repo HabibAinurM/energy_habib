@@ -40,6 +40,8 @@ const Device = sequelize.define('Device', {
   batasKwhBulanan: { type: DataTypes.FLOAT, allowNull: true },
   keterangan: { type: DataTypes.TEXT, allowNull: true },
   status:   { type: DataTypes.STRING(20), defaultValue: 'nonaktif' },
+  targetWifiSsid: { type: DataTypes.STRING(100), allowNull: true },
+  targetWifiPassword: { type: DataTypes.STRING(100), allowNull: true },
 }, {
   tableName: 'devices',
 });

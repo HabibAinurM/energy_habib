@@ -101,6 +101,23 @@ router.patch('/:id/status', authenticate, async (req, res) => {
   }
 });
 
+/* POST configure wifi */
+router.post('/:id/wifi', authenticate, async (req, res) => {
+  try {
+    const device = await Device.findOne({ where: { id: req.params.id, userId: req.user.id } });
+    if (!device) return res.status(404).json({ message: 'Perangkat tidak ditemukan' });
+
+    const { ssid, password } = req.body;
+    if (!ssid) return res.status(400).json({ message: 'SSID WiFi wajib diisi' });
+
+    await device.update({ targetWifiSsid: ssid, targetWifiPassword: password || '' });
+    res.json({ message: 'Konfigurasi WiFi berhasil disimpan. Perangkat akan menerima konfigurasi pada pengiriman data berikutnya.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Gagal menyimpan konfigurasi WiFi' });
+  }
+});
+
 /* DELETE device */
 router.delete('/:id', authenticate, async (req, res) => {
   try {

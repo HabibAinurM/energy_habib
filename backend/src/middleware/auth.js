@@ -16,7 +16,7 @@ const authenticate = async (req, res, next) => {
     const decoded = jwt.verify(token, SECRET);
 
     const user = await User.findByPk(decoded.id, {
-      attributes: ['id', 'username', 'email', 'role', 'isActive'],
+      attributes: ['id', 'username', 'email', 'role', 'telegramChatId', 'isActive'],
     });
 
     if (!user || !user.isActive) {

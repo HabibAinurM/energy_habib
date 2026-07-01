@@ -2,13 +2,14 @@ const router = require('express').Router();
 const { Op } = require('sequelize');
 const { SensorData, TarifListrik, EnergiHarian, Alert, SystemSettings, Device } = require('../models');
 const { authenticate } = require('../middleware/auth');
+const { getLocalYMD } = require('../utils/date');
 
 // GET /api/dashboard
 router.get('/', authenticate, async (req, res) => {
   try {
     const now = new Date();
-    const todayStr = now.toISOString().slice(0, 10);
-    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const todayStr = getLocalYMD(now);
+    const monthStart = `${todayStr.slice(0, 7)}-01`;
 
     const devices = await Device.findAll({ where: { userId: req.user.id }, attributes: ['id'] });
     const deviceIds = devices.map(d => d.id);
@@ -53,6 +54,9 @@ router.get('/', authenticate, async (req, res) => {
       biaya_hari_ini:      parseFloat(biayaHariIni.toFixed(2)),
       biaya_bulan_ini:     parseFloat(biayaBulan.toFixed(2)),
       energi_bulan_ini:    parseFloat(energiBulan.toFixed(4)),
+      max_daya_hari_ini:   todayData?.maxDaya ?? 0,
+      avg_tegangan_hari_ini: todayData?.avgTegangan ?? 0,
+      avg_arus_hari_ini:   todayData?.avgArus ?? 0,
       batas_biaya_bulanan: batas,
       persentase_biaya:    parseFloat(persentase.toFixed(2)),
       total_alert_unread:  unreadCount,

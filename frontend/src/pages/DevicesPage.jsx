@@ -23,6 +23,7 @@ const deviceAPI = {
   update:  (id, data)   => api.put(`/devices/${id}`, data),
   delete:  (id)         => api.delete(`/devices/${id}`),
   toggle:  (id, status) => api.patch(`/devices/${id}/status`, { status }),
+  updateWifi: (id, ssid, password) => api.post(`/devices/${id}/wifi`, { ssid, password }),
 };
 
 const EMPTY_FORM = {
@@ -36,6 +37,17 @@ const EMPTY_FORM = {
   keterangan: '',
 };
 
+/* ─── field helper ─── */
+const Field = ({ label, children, required, hint }) => (
+  <div>
+    <label className="block text-sm font-medium text-slate-300 mb-1.5">
+      {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+    </label>
+    {children}
+    {hint && <p className="text-xs text-slate-600 mt-1">{hint}</p>}
+  </div>
+);
+
 const DevicesPage = () => {
   const [devices, setDevices]   = useState([]);
   const [loading, setLoading]   = useState(true);
@@ -44,6 +56,11 @@ const DevicesPage = () => {
   const [form, setForm]         = useState(EMPTY_FORM);
   const [saving, setSaving]     = useState(false);
   const [deleteId, setDeleteId] = useState(null);
+
+  /* ─── wifi config state ─── */
+  const [wifiConfig, setWifiConfig] = useState(null); // stores device info when modal is open
+  const [wifiForm, setWifiForm]     = useState({ ssid: '', password: '' });
+  const [wifiSaving, setWifiSaving] = useState(false);
 
   /* ─── load ─── */
   const loadDevices = async () => {
@@ -130,16 +147,24 @@ const DevicesPage = () => {
     setShowForm(false);
   };
 
-  /* ─── field helper ─── */
-  const Field = ({ label, children, required, hint }) => (
-    <div>
-      <label className="block text-sm font-medium text-slate-300 mb-1.5">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
-      </label>
-      {children}
-      {hint && <p className="text-xs text-slate-600 mt-1">{hint}</p>}
-    </div>
-  );
+  const handleWifiSubmit = async (e) => {
+    e.preventDefault();
+    if (!wifiForm.ssid) {
+      toast.error('SSID WiFi wajib diisi');
+      return;
+    }
+    setWifiSaving(true);
+    try {
+      await deviceAPI.updateWifi(wifiConfig.id, wifiForm.ssid, wifiForm.password);
+      toast.success('Konfigurasi WiFi berhasil disimpan');
+      setWifiConfig(null);
+      setWifiForm({ ssid: '', password: '' });
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Gagal menyimpan konfigurasi WiFi');
+    } finally {
+      setWifiSaving(false);
+    }
+  };
 
   const inputCls = "w-full bg-slate-800/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 text-sm transition-colors";
 
@@ -432,6 +457,13 @@ const DevicesPage = () => {
                 </button>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => { setWifiConfig(device); setWifiForm({ ssid: '', password: '' }); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-blue-400 hover:text-white hover:bg-blue-600/20 rounded-lg transition-all"
+                  >
+                    <Wifi className="w-3.5 h-3.5" />
+                    WiFi
+                  </button>
+                  <button
                     onClick={() => handleEdit(device)}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all"
                   >
@@ -468,6 +500,67 @@ const DevicesPage = () => {
           ))}
         </div>
       )}
+
+      {/* ── Modal Konfigurasi WiFi ── */}
+      {wifiConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700/60 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b border-slate-800/60">
+              <h3 className="text-white font-semibold flex items-center gap-2">
+                <Wifi className="w-4 h-4 text-blue-400" />
+                Konfigurasi WiFi
+              </h3>
+              <button onClick={() => setWifiConfig(null)} className="text-slate-500 hover:text-slate-300 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleWifiSubmit} className="p-5 space-y-4">
+              <p className="text-sm text-slate-400 mb-2">
+                Masukkan detail WiFi untuk perangkat <strong className="text-white">{wifiConfig.nama_perangkat}</strong>. Kredensial ini akan dikirimkan ke perangkat pada koneksi berikutnya.
+              </p>
+              
+              <Field label="SSID (Nama WiFi)" required>
+                <input
+                  type="text"
+                  value={wifiForm.ssid}
+                  onChange={e => setWifiForm({ ...wifiForm, ssid: e.target.value })}
+                  placeholder="cth. WiFi Rumah"
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Password WiFi">
+                <input
+                  type="password"
+                  value={wifiForm.password}
+                  onChange={e => setWifiForm({ ...wifiForm, password: e.target.value })}
+                  placeholder="Kosongkan jika WiFi tanpa password"
+                  className={inputCls}
+                />
+              </Field>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800/60 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setWifiConfig(null)}
+                  className="px-4 py-2 text-slate-400 hover:text-white text-sm transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={wifiSaving}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white rounded-xl text-sm font-medium transition-all"
+                >
+                  {wifiSaving ? <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Save className="w-4 h-4" />}
+                  Simpan Konfigurasi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
