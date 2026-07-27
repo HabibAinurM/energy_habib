@@ -16,11 +16,11 @@ async function setup() {
     process.exit(1);
   }
 
-  const { User, TarifListrik, SystemSettings } = require('../models');
+  const { User, TarifListrik, MasterTarif, SystemSettings } = require('../models');
 
   // Buat tabel
   console.log('[1/5] Membuat semua tabel...');
-  await sequelize.sync();
+  await sequelize.sync({ alter: true });
   console.log('      ✓ Tabel berhasil dibuat\n');
 
   // Admin
@@ -48,12 +48,29 @@ async function setup() {
   console.log('      ✓ Tarif dibuat');
 
   // Settings
-  console.log('\n[5/5] System settings...');
+  console.log('\n[5/6] System settings...');
   await SystemSettings.findOrCreate({
     where: { id: 1 },
     defaults: { voltageMin: 190, voltageMax: 250, currentMax: 20, costWarningPercentage: 80 },
   });
   console.log('      ✓ Settings siap');
+
+  // Master Tarif
+  console.log('\n[6/6] Membuat Master Tarif referensi...');
+  const golongans = [
+    { namaGolongan: 'R-1/TR 900VA', tarifPerKwh: 1352 },
+    { namaGolongan: 'R-1/TR 1300VA', tarifPerKwh: 1444.70 },
+    { namaGolongan: 'R-1/TR 2200VA', tarifPerKwh: 1444.70 },
+    { namaGolongan: 'R-2/TR 3500-5500VA', tarifPerKwh: 1699.53 },
+    { namaGolongan: 'R-3/TR ≥6600VA', tarifPerKwh: 1699.53 },
+  ];
+  for (const gol of golongans) {
+    await MasterTarif.findOrCreate({
+      where: { namaGolongan: gol.namaGolongan },
+      defaults: { tarifPerKwh: gol.tarifPerKwh },
+    });
+  }
+  console.log('      ✓ Master Tarif dibuat');
 
   console.log('\n Setup selesai! Jalankan: npm run dev\n');
   process.exit(0);

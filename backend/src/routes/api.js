@@ -1,12 +1,50 @@
 const router = require('express').Router();
 const { Op } = require('sequelize');
 const {
-  TarifListrik, Alert, EnergiHarian, PrediksiEnergi, SystemSettings, User, SensorData
+  TarifListrik, Alert, EnergiHarian, PrediksiEnergi, SystemSettings, User, SensorData, MasterTarif
 } = require('../models');
 const { authenticate, requireAdmin } = require('../middleware/auth');
 const { generatePredictions } = require('../services/predictionService');
 const { ALERT_LABELS } = require('../services/alertService');
 const { getLocalYMD } = require('../utils/date');
+
+// ════════════════════════════════════════════════════════════
+//  MASTER TARIF (GLOBAL REFERENCE)
+// ════════════════════════════════════════════════════════════
+
+// GET /api/master-tarif
+router.get('/master-tarif', authenticate, async (req, res) => {
+  const master = await MasterTarif.findAll();
+  res.json(master);
+});
+
+// POST /api/master-tarif (admin only)
+router.post('/master-tarif', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const { namaGolongan, tarifPerKwh } = req.body;
+    if (!namaGolongan || !tarifPerKwh) return res.status(400).json({ error: 'Data tidak lengkap' });
+    const m = await MasterTarif.create({ namaGolongan, tarifPerKwh });
+    res.status(201).json(m);
+  } catch (e) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/master-tarif/:id (admin only)
+router.put('/master-tarif/:id', authenticate, requireAdmin, async (req, res) => {
+  const m = await MasterTarif.findByPk(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  await m.update({ namaGolongan: req.body.namaGolongan, tarifPerKwh: req.body.tarifPerKwh });
+  res.json(m);
+});
+
+// DELETE /api/master-tarif/:id (admin only)
+router.delete('/master-tarif/:id', authenticate, requireAdmin, async (req, res) => {
+  const m = await MasterTarif.findByPk(req.params.id);
+  if (!m) return res.status(404).json({ error: 'Not found' });
+  await m.destroy();
+  res.json({ message: 'Deleted' });
+});
 
 // ════════════════════════════════════════════════════════════
 //  TARIF LISTRIK

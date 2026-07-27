@@ -8,10 +8,13 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import MonitoringPage from './pages/MonitoringPage';
 import PrediksiPage from './pages/PrediksiPage';
+
 import RiwayatPage from './pages/RiwayatPage';
 import AlertsPage from './pages/AlertsPage';
 import TarifPage from './pages/TarifPage';
 import UsersPage from './pages/UsersPage';
+import GlobalTarifPage from './pages/GlobalTarifPage';
+
 import AccountSettingsPage from './pages/AccountSettingsPage';
 import DevicesPage from './pages/DevicesPage';
 import { Menu } from 'lucide-react';
@@ -81,6 +84,9 @@ const App = () => (
         } />
         <Route path="/users" element={
           <PrivateRoute adminOnly><Layout><UsersPage /></Layout></PrivateRoute>
+        } />
+        <Route path="/admin/tarif" element={
+          <PrivateRoute adminOnly><Layout><GlobalTarifPage /></Layout></PrivateRoute>
         } />
 
         {/* ── Rute baru ── */}

@@ -26,12 +26,8 @@ PZEM004Tv30 pzem(Serial2, PZEM_RX_PIN, PZEM_TX_PIN);
 Preferences prefs;
 
 // ─── DEFAULT CONFIG ──────────────────────────────────────────
-#define DEFAULT_SERVER_IP   "energimeter.tifpsdku.com"
-#define DEFAULT_SERVER_PORT "443"
 #define DEFAULT_DEVICE_ID   "D1"
 
-char g_serverIp[40];
-char g_serverPort[8];
 char g_deviceId[32];
 
 // ─── KONFIGURASI INTERVAL ────────────────────────────────────
@@ -55,25 +51,10 @@ int   sample_count = 0; // Jumlah sampel yang terkumpul
 unsigned long lastReadTime = 0;  // Waktu terakhir baca sensor
 unsigned long lastSendTime = 0;  // Waktu terakhir kirim ke server
 
-// URL dibangun otomatis dari IP + Port (Mendukung HTTP & HTTPS)
-char g_apiUrl[128];
-void buildApiUrl() {
-  String portStr = String(g_serverPort);
-  // Jika port 443 atau kosong, asumsikan HTTPS
-  if (portStr == "443" || portStr == "") {
-    snprintf(g_apiUrl, sizeof(g_apiUrl),
-             "https://%s/api/sensor-data",
-             g_serverIp);
-  } else {
-    snprintf(g_apiUrl, sizeof(g_apiUrl),
-             "http://%s:%s/api/sensor-data",
-             g_serverIp, g_serverPort);
-  }
-}
+// URL API Server
+const char* g_apiUrl = "https://simon.tifpsdku.com/api/sensor-data";
 
 WiFiManager wifiManager;
-WiFiManagerParameter* param_serverIp;
-WiFiManagerParameter* param_serverPort;
 WiFiManagerParameter* param_deviceId;
 
 // ================= UI PREMIUM =================
@@ -173,8 +154,8 @@ div.l { margin-bottom: 5px; }
 </div>
 
 <div class="card fade">
-  <h3>🔧 Setup WiFi & Server</h3>
-  <p>Pilih nama WiFi Anda dari pilihan di bawah ini, lalu masukkan Password dan Konfigurasi Server.</p>
+  <h3>🔧 Setup WiFi & Device</h3>
+  <p>Pilih nama WiFi Anda dari pilihan di bawah ini, lalu masukkan Password dan Device ID.</p>
 </div>
 
 <script>
@@ -239,28 +220,16 @@ window.addEventListener('load', function() {
 // ================= HELPER =================
 void loadConfig() {
   prefs.begin("cfg", true);
-  String ip   = prefs.getString("serverIp",   DEFAULT_SERVER_IP);
-  String port = prefs.getString("serverPort", DEFAULT_SERVER_PORT);
   String did  = prefs.getString("deviceId",   DEFAULT_DEVICE_ID);
   prefs.end();
 
-  ip.toCharArray(g_serverIp,   sizeof(g_serverIp));
-  port.toCharArray(g_serverPort, sizeof(g_serverPort));
   did.toCharArray(g_deviceId,  sizeof(g_deviceId));
-  buildApiUrl();
 }
 
 void saveConfig() {
   prefs.begin("cfg", false);
-  prefs.putString("serverIp",   param_serverIp->getValue());
-  prefs.putString("serverPort", param_serverPort->getValue());
   prefs.putString("deviceId",   param_deviceId->getValue());
   prefs.end();
-
-  // Rebuild URL setelah simpan
-  strncpy(g_serverIp,   param_serverIp->getValue(),   sizeof(g_serverIp)-1);
-  strncpy(g_serverPort, param_serverPort->getValue(), sizeof(g_serverPort)-1);
-  buildApiUrl();
 }
 
 void setLed(bool status) {
@@ -288,12 +257,8 @@ void setup() {
 
   loadConfig();
 
-  param_serverIp   = new WiFiManagerParameter("ip",   "Server IP",   g_serverIp,   38);
-  param_serverPort = new WiFiManagerParameter("port", "Server Port", g_serverPort,  6);
   param_deviceId   = new WiFiManagerParameter("id",   "Device ID",   g_deviceId,   30);
 
-  wifiManager.addParameter(param_serverIp);
-  wifiManager.addParameter(param_serverPort);
   wifiManager.addParameter(param_deviceId);
 
   // 🔥 UI CUSTOM

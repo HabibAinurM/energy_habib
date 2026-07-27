@@ -17,6 +17,7 @@ const navItems = [
 
 const adminItems = [
   { path: '/users', icon: Users,    label: 'Manajemen User' },
+  { path: '/admin/tarif', icon: Settings, label: 'Manajemen Tarif Global' },
 ];
 
 const settingItems = [

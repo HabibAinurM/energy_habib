@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardAPI, devAPI } from '../services/api';
+import { dashboardAPI } from '../services/api';
 import { useWebSocket } from '../hooks/useWebSocket';
 import {
   Zap, Activity, TrendingUp, AlertTriangle,
-  DollarSign, Battery, Wifi, WifiOff, RefreshCw, Gauge, Cpu
+  DollarSign, Battery, Wifi, WifiOff, Gauge, Cpu
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
@@ -85,12 +85,19 @@ const CostProgressBar = ({ current, max, percentage }) => (
     </div>
     <div className="flex justify-between mt-2">
       <span className="text-xs text-slate-500">{percentage.toFixed(1)}% terpakai</span>
-      <span className={`text-xs font-medium ${
+      <span className={`text-xs font-medium flex items-center gap-1 ${
         percentage >= 100 ? 'text-red-400' :
         percentage >= 80  ? 'text-amber-400' : 'text-emerald-400'
       }`}>
-        {percentage >= 100 ? '⚠ Melebihi Batas' :
-         percentage >= 80  ? '⚠ Mendekati Batas' : '✓ Aman'}
+        {percentage > 100 ? (
+          <>⚠ Lebih <span className="font-bold font-mono">{formatRupiah(current - max)}</span></>
+        ) : percentage === 100 ? (
+          '⚠ Pas Mencapai Batas'
+        ) : percentage >= 80 ? (
+          '⚠ Mendekati Batas'
+        ) : (
+          '✓ Aman'
+        )}
       </span>
     </div>
   </div>
@@ -149,16 +156,7 @@ const DashboardPage = () => {
     }
   }, [lastData]);
 
-  const generateSampleData = async () => {
-    try {
-      toast.info('Generating sample data...');
-      await devAPI.generateSampleData();
-      toast.success('Sample data berhasil dibuat!');
-      fetchSummary();
-    } catch {
-      toast.error('Gagal generate sample data');
-    }
-  };
+
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -207,13 +205,7 @@ const DashboardPage = () => {
             {isConnected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
             {isConnected ? 'Live' : 'Offline'}
           </div>
-          <button
-            onClick={generateSampleData}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700 text-xs transition-colors"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Generate Test Data
-          </button>
+
         </div>
       </div>
 

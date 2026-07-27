@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { tarifAPI } from '../services/api';
+import api, { tarifAPI } from '../services/api';
 import { toast } from 'react-toastify';
-import { Settings, Plus, Check, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Check, Trash2, Edit2 } from 'lucide-react';
 import { formatRupiah } from '../utils/format';
 import { format } from 'date-fns';
 
 const TarifPage = () => {
   const [tarifs, setTarifs] = useState([]);
+  const [masterTarifs, setMasterTarifs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -20,6 +21,9 @@ const TarifPage = () => {
     try {
       const res = await tarifAPI.getAll();
       setTarifs(res.data.results || res.data);
+      
+      const resMaster = await api.get('/master-tarif');
+      setMasterTarifs(resMaster.data);
     } catch {
       toast.error('Gagal memuat data tarif');
     } finally {
@@ -69,13 +73,6 @@ const TarifPage = () => {
     }
   };
 
-  const GOLONGAN = [
-    { nama: 'R-1/TR 900VA', tarif: 1352 },
-    { nama: 'R-1/TR 1300VA', tarif: 1444.70 },
-    { nama: 'R-1/TR 2200VA', tarif: 1444.70 },
-    { nama: 'R-2/TR 3500-5500VA', tarif: 1699.53 },
-    { nama: 'R-3/TR ≥6600VA', tarif: 1699.53 },
-  ];
 
   return (
     <div className="space-y-6">
@@ -95,19 +92,19 @@ const TarifPage = () => {
 
       {/* Referensi Golongan PLN */}
       <div className="bg-slate-900/60 border border-slate-700/40 rounded-2xl p-5">
-        <h3 className="text-white font-semibold mb-4 text-sm">Referensi Tarif PLN (Januari 2024)</h3>
+        <h3 className="text-white font-semibold mb-4 text-sm">Referensi Tarif Global (PLN)</h3>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-          {GOLONGAN.map(g => (
+          {masterTarifs.map(g => (
             <button
-              key={g.nama}
+              key={g.id}
               onClick={() => {
-                setForm({ namaTarif: g.nama, hargaPerKwh: g.tarif, batasBiayaBulanan: '' });
+                setForm({ ...form, namaTarif: g.namaGolongan, hargaPerKwh: g.tarifPerKwh });
                 setShowForm(true);
               }}
               className="bg-slate-800/60 hover:bg-blue-600/20 border border-slate-700/40 hover:border-blue-500/30 rounded-xl p-3 text-left transition-all"
             >
-              <p className="text-slate-300 text-xs font-medium">{g.nama}</p>
-              <p className="text-blue-400 font-bold font-mono text-sm mt-1">Rp {g.tarif.toFixed(2)}</p>
+              <div className="text-white font-medium mb-1 truncate">{g.namaGolongan}</div>
+              <div className="text-blue-400 font-mono text-sm mt-1">Rp {g.tarifPerKwh}</div>
               <p className="text-slate-500 text-xs">per kWh</p>
             </button>
           ))}

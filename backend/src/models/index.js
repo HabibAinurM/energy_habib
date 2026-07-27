@@ -73,6 +73,16 @@ const TarifListrik = sequelize.define('TarifListrik', {
   tableName: 'tarif_listrik',
 });
 
+// ─── MASTER TARIF (REFERENSI GLOBAL) ────────────────────
+const MasterTarif = sequelize.define('MasterTarif', {
+  id:           { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  namaGolongan: { type: DataTypes.STRING(100), allowNull: false },
+  tarifPerKwh:  { type: DataTypes.FLOAT, allowNull: false },
+}, {
+  tableName: 'master_tarif',
+  timestamps: false,
+});
+
 // ─── ALERT ──────────────────────────────────────────────
 const Alert = sequelize.define('Alert', {
   id:         { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -153,4 +163,4 @@ SystemSettings.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(PrediksiEnergi, { foreignKey: 'userId', as: 'prediksiEnergi' });
 PrediksiEnergi.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
-module.exports = { User, Device, SensorData, TarifListrik, Alert, EnergiHarian, PrediksiEnergi, SystemSettings, sequelize };
+module.exports = { User, Device, SensorData, TarifListrik, MasterTarif, Alert, EnergiHarian, PrediksiEnergi, SystemSettings, sequelize };

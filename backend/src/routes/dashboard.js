@@ -36,7 +36,7 @@ router.get('/', authenticate, async (req, res) => {
     const biayaHariIni = energiHariIni * harga;
     const energiBulan = monthRows.reduce((s, r) => s + r.totalEnergi, 0);
     const biayaBulan = monthRows.reduce((s, r) => s + r.totalBiaya, 0);
-    const persentase = batas ? Math.min((biayaBulan / batas) * 100, 100) : 0;
+    const persentase = batas ? (biayaBulan / batas) * 100 : 0;
 
     const tegangan = latest?.tegangan ?? 0;
     const arus = latest?.arus ?? 0;

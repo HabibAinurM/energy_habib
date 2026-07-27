@@ -18,6 +18,29 @@ const PrediksiPage = () => {
   const [comparison, setComparison] = useState({ actual: [], predictions: [] });
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  const loadingMessages = [
+    "Mengumpulkan data historis...",
+    "Membersihkan data konsumsi energi...",
+    "Menyiapkan model AI (LSTM)...",
+    "Melatih jaringan saraf tiruan...",
+    "Menganalisis tren masa lalu...",
+    "Membuat prediksi 7 hari ke depan...",
+    "Menghitung batas atas dan bawah...",
+    "Melakukan finalisasi hasil..."
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (generating) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev + 1) % loadingMessages.length);
+      }, 1800);
+    }
+    return () => clearInterval(interval);
+  }, [generating]);
 
   const loadData = async () => {
     try {
@@ -130,22 +153,44 @@ const PrediksiPage = () => {
   };
 
   // ── Chart: perbandingan aktual vs prediksi ───────────────────────────────
+  const allDatesMap = new Map();
+  normalActual.forEach(d => {
+    if (d.tanggal) {
+      const dStr = String(d.tanggal).slice(0, 10);
+      allDatesMap.set(dStr, dStr);
+    }
+  });
+  normalCompPreds.forEach(d => {
+    if (d.tanggal_prediksi) {
+      const dStr = String(d.tanggal_prediksi).slice(0, 10);
+      allDatesMap.set(dStr, dStr);
+    }
+  });
+  const sortedDates = Array.from(allDatesMap.values()).sort();
+
   const comparisonData = {
-    labels: normalActual.map((d) => safeFormat(d.tanggal, 'dd/MM')),
+    labels: sortedDates.map((date) => safeFormat(date, 'dd/MM')),
     datasets: [
       {
         label: 'Aktual (kWh)',
-        data: normalActual.map((d) => d.total_energi),
+        data: sortedDates.map(date => {
+          const item = normalActual.find(d => String(d.tanggal).slice(0, 10) === date);
+          return item ? item.total_energi : null;
+        }),
         borderColor: '#22d3ee',
         backgroundColor: 'rgba(34,211,238,0.1)',
         borderWidth: 2,
         pointRadius: 3,
         tension: 0.4,
         fill: false,
+        spanGaps: true,
       },
       {
         label: 'Prediksi (kWh)',
-        data: normalCompPreds.map((d) => d.prediksi_energi),
+        data: sortedDates.map(date => {
+          const item = normalCompPreds.find(d => String(d.tanggal_prediksi).slice(0, 10) === date);
+          return item ? item.prediksi_energi : null;
+        }),
         borderColor: '#f59e0b',
         backgroundColor: 'rgba(245,158,11,0.1)',
         borderWidth: 2,
@@ -153,6 +198,7 @@ const PrediksiPage = () => {
         pointRadius: 3,
         tension: 0.4,
         fill: false,
+        spanGaps: true,
       },
     ],
   };
@@ -198,6 +244,52 @@ const PrediksiPage = () => {
           {generating ? 'Memproses...' : 'Generate Prediksi'}
         </button>
       </div>
+
+      {/* Dynamic Loading Overlay */}
+      {generating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 pointer-events-none">
+          <div className="flex flex-col items-center max-w-sm w-full p-8 rounded-3xl bg-slate-900/95 backdrop-blur-xl border border-blue-500/30 shadow-[0_0_100px_-10px_rgba(59,130,246,0.5)] pointer-events-auto">
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-blue-500/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-lg animate-ping" style={{ animationDuration: '2s' }}></div>
+              <div className="relative w-20 h-20 bg-gradient-to-tr from-blue-600 to-cyan-400 rounded-2xl flex items-center justify-center shadow-inner overflow-hidden">
+                <Brain className="w-10 h-10 text-white animate-bounce" style={{ animationDuration: '2s' }} />
+                <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20 translate-y-full animate-[shimmer_2s_infinite]"></div>
+              </div>
+            </div>
+            
+            <h3 className="text-xl font-bold text-white mb-2">AI Sedang Bekerja</h3>
+            
+            <div className="h-6 flex items-center justify-center overflow-hidden w-full relative">
+              <p key={loadingStep} className="text-blue-400 text-sm font-medium animate-[slideUp_0.3s_ease-out_forwards]">
+                {loadingMessages[loadingStep]}
+              </p>
+            </div>
+            
+            <div className="w-full h-1.5 bg-slate-800 rounded-full mt-6 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-600 to-cyan-400 rounded-full animate-[progress_15s_ease-in-out_forwards]"></div>
+            </div>
+            <p className="text-slate-500 text-xs mt-3 text-center">
+              Proses ini membutuhkan waktu beberapa detik untuk hasil yang akurat.
+            </p>
+          </div>
+          
+          <style dangerouslySetInnerHTML={{__html: `
+            @keyframes slideUp {
+              0% { opacity: 0; transform: translateY(10px); }
+              100% { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes shimmer {
+              0% { transform: translateY(100%); }
+              100% { transform: translateY(-100%); }
+            }
+            @keyframes progress {
+              0% { width: 0%; }
+              100% { width: 100%; }
+            }
+          `}} />
+        </div>
+      )}
 
       {/* Summary 7 hari */}
       {normalPreds.length > 0 && (
