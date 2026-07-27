@@ -75,4 +75,4 @@ Jika Anda ingin menjalankan aplikasi secara praktis di dalam *container*:
 3. Docker akan mem-*build* dan menjalankan kontainer untuk Frontend, Backend, dan Database sekaligus.
 
 ---
-Dibuat dengan ❤️ untuk proyek Monitoring Energi IoT.
+
